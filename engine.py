@@ -73,6 +73,11 @@ def default_assumptions() -> dict:
         "recruiting_monthly": 1_000.0,
         "insurance_monthly": 1_500.0,
         "travel_monthly": 500.0,
+        # Per-inspector overhead scaling (monthly $ per active inspector)
+        "software_per_inspector":    0.0,   # $ per inspector/mo — workforce mgmt, scheduling, QA tools
+        "insurance_per_inspector":   0.0,   # $ per inspector/mo — GL/umbrella above burden (WC is in burden%)
+        "travel_per_inspector":      0.0,   # $ per inspector/mo — site visits, supervisor travel
+        "recruiting_per_inspector":  0.0,   # $ per inspector/mo — ongoing job board, agency fees at scale
         # Corporate allocation
         "corp_alloc_mode": "fixed",   # "fixed" | "pct_revenue"
         "corp_alloc_fixed": 0.0,
@@ -345,10 +350,20 @@ def run_model(assumptions: dict, headcount_plan: list):
     wks_in_mo = df.groupby("month_idx").size().to_dict()
     df["wks_in_month"] = df["month_idx"].map(wks_in_mo)
 
+    # Per-inspector overhead scaling (monthly $ per active inspector)
+    sw_pi  = float(a.get("software_per_inspector",   0.0))
+    rec_pi = float(a.get("recruiting_per_inspector", 0.0))
+    ins_pi = float(a.get("insurance_per_inspector",  0.0))
+    trv_pi = float(a.get("travel_per_inspector",     0.0))
+
     fixed_mo = sw_mo + rec_mo + ins_mo + trv_mo
     if ca_mode == "fixed":
         fixed_mo += ca_fix
     df["fixed_ovhd_wk"] = fixed_mo / df["wks_in_month"]
+
+    # Per-inspector component: (total monthly per-inspector rate × inspectors) ÷ weeks in month
+    pi_mo_total = sw_pi + rec_pi + ins_pi + trv_pi
+    df["pi_ovhd_wk"] = (pi_mo_total * df["inspectors"]) / df["wks_in_month"]
 
     df["corp_alloc_wk"] = df["revenue_wk"] * ca_pct if ca_mode == "pct_revenue" else 0.0
 
@@ -358,7 +373,7 @@ def run_model(assumptions: dict, headcount_plan: list):
         df["n_fieldsup"]     * fieldsup_to    * fieldsup_rc    / 52 +
         df["n_regionalmgr"]  * regionalmgr_to * regionalmgr_rc / 52
     )
-    df["overhead_wk"]   = df["fixed_ovhd_wk"] + df["corp_alloc_wk"] + df["turnover_cost_wk"]
+    df["overhead_wk"]   = df["fixed_ovhd_wk"] + df["pi_ovhd_wk"] + df["corp_alloc_wk"] + df["turnover_cost_wk"]
 
     # --- EBITDA (accrual, pre-interest) ------------------------------
     df["ebitda_wk"] = (df["revenue_wk"]

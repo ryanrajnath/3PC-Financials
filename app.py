@@ -314,6 +314,78 @@ PRESETS = {
         "headcount": _build_hc([(1,2,25),(3,4,50),(5,6,75),(7,9,100),
                                  (10,12,125),(13,24,150),(25,60,175)]),
     },
+    "Enterprise Scale-Up": {
+        "assumptions": {**default_assumptions(),
+            # Billing — at scale, slightly above base rate; OT stays meaningful
+            "st_bill_rate": 42.0,
+            "ot_hours": 10,
+            "ot_bill_mode": "passthrough",
+            # Labor costs — scale justifies tighter burden via safety maturity
+            "inspector_wage": 21.0,
+            "burden": 0.28,
+            "lead_wage": 26.0,
+            "lead_st_hours": 40,
+            "lead_ot_hours": 10,
+            "team_lead_ratio": 12,
+            "lead_bill_premium": 1.0,
+            # Management — enterprise-grade compensation
+            "gm_loaded_annual": 150_000,
+            "opscoord_base": 72_000,
+            "fieldsup_base": 78_000,
+            "regionalmgr_base": 125_000,
+            "mgmt_burden": 0.25,
+            # AR / cash
+            "net_days": 90,
+            "apr": 0.08,
+            "max_loc": 10_000_000,   # $10M LOC needed for 500-person AR float
+            "cash_buffer": 100_000,
+            "initial_cash": 50_000,
+            # Fixed overhead baseline (per-inspector components handle the scaling)
+            "software_monthly": 1_000,
+            "recruiting_monthly": 2_000,
+            "insurance_monthly": 3_000,
+            "travel_monthly": 1_000,
+            # Per-inspector overhead scaling — these scale all overhead with headcount
+            "software_per_inspector": 18.0,     # $18/inspector/mo — workforce mgmt (e.g. Bullhorn, scheduling systems)
+            "insurance_per_inspector": 12.0,    # $12/inspector/mo — GL/umbrella above workers comp
+            "travel_per_inspector": 8.0,        # $8/inspector/mo — supervisor site visits, regional travel
+            "recruiting_per_inspector": 15.0,   # $15/inspector/mo — job boards, agency fees, turnover at scale
+            # Turnover / onboarding (higher-volume onboarding program)
+            "inspector_onboarding_cost": 600.0,
+            "inspector_turnover_rate": 1.2,     # 120% annual — high turnover is structural at this scale
+            "mgmt_winddown_weeks": 12,
+            # Bad debt — tighter collections team at scale brings this down
+            "bad_debt_pct": 0.005,              # 0.5% — enterprise AR function tightens collections
+            # Corp alloc — at 500 inspectors, OpSource corporate overhead allocation increases
+            "corp_alloc_mode": "pct_revenue",
+            "corp_alloc_pct": 0.02,             # 2% of revenue to parent company
+            "corp_alloc_fixed": 0.0,
+        },
+        # Headcount ramp: 25 → 500 inspectors by M60, gradual S-curve
+        "headcount": _build_hc([
+            (1,  2,   25),   # M1-2:   Initial deployment — 25 inspectors
+            (3,  4,   35),   # M3-4:   First growth phase
+            (5,  6,   50),   # M5-6:   Expand to 2nd client
+            (7,  8,   70),   # M7-8:   3rd client, first field supervisor
+            (9,  10,  90),   # M9-10:  Approaching 100, first ops coordinator
+            (11, 12, 115),   # M11-12: End of year 1 — 115 inspectors
+            (13, 15, 140),   # Q1 Y2
+            (16, 18, 170),   # Q2 Y2
+            (19, 21, 200),   # Q3 Y2 — 200 milestone
+            (22, 24, 235),   # Q4 Y2
+            (25, 27, 270),   # Q1 Y3
+            (28, 30, 305),   # Q2 Y3 — first regional manager
+            (31, 33, 340),   # Q3 Y3
+            (34, 36, 375),   # Q4 Y3 — 375 inspectors end of year 3
+            (37, 40, 410),   # Q1 Y4
+            (41, 44, 445),   # Q2 Y4
+            (45, 48, 470),   # Q3 Y4
+            (49, 52, 485),   # Q4 Y4
+            (53, 56, 495),   # Q1 Y5
+            (57, 60, 500),   # Q2 Y5 — 500 inspectors milestone
+            (61,120, 500),   # Hold at 500
+        ]),
+    },
 }
 
 # ── Scenario drift detection ───────────────────────────────────────────────
@@ -800,6 +872,31 @@ with tab_inputs:
                         a["insurance_monthly"] + a["travel_monthly"] +
                         (a["corp_alloc_fixed"] if a["corp_alloc_mode"] == "fixed" else 0))
         st.caption(f"Total fixed overhead: **${_total_fixed:,.0f}/month**")
+
+        st.markdown("**Per-Inspector Overhead Scaling** *(scales with active headcount)*")
+        c1, c2 = st.columns(2)
+        with c1:
+            a["software_per_inspector"] = st.number_input(
+                "Software $/inspector/mo", min_value=0.0, max_value=100.0,
+                value=float(a.get("software_per_inspector", 0.0)), step=1.0,
+                help="Workforce mgmt, scheduling, QA tools (e.g. Bullhorn, ClockShark)"
+            )
+            a["insurance_per_inspector"] = st.number_input(
+                "Insurance $/inspector/mo", min_value=0.0, max_value=100.0,
+                value=float(a.get("insurance_per_inspector", 0.0)), step=1.0,
+                help="GL/umbrella above workers comp (WC is already in burden %)"
+            )
+        with c2:
+            a["travel_per_inspector"] = st.number_input(
+                "Travel $/inspector/mo", min_value=0.0, max_value=100.0,
+                value=float(a.get("travel_per_inspector", 0.0)), step=1.0,
+                help="Supervisor site visits, regional travel scales with field count"
+            )
+            a["recruiting_per_inspector"] = st.number_input(
+                "Recruiting $/inspector/mo", min_value=0.0, max_value=100.0,
+                value=float(a.get("recruiting_per_inspector", 0.0)), step=1.0,
+                help="Ongoing job boards, agency fees — scales with headcount at volume"
+            )
 
     with st.expander("Tax Rates", expanded=False):
         st.caption(
