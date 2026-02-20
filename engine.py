@@ -98,6 +98,17 @@ def default_assumptions() -> dict:
         # Team lead bill rate premium (multiplier on inspector bill rate)
         # 1.0 = same rate as inspectors; 1.1 = 10% premium for supervisory labor
         "lead_bill_premium": 1.0,
+        # OT billing methodology
+        "ot_bill_mode": "passthrough",   # "markup" = st_bill * ot_prem;  "passthrough" = st_bill + wage_ot_increment
+        # Bad debt
+        "bad_debt_pct": 0.01,            # 1% of revenue written off — industry standard for B2B industrial staffing
+        # Inspector turnover (separate from onboarding amortization)
+        "inspector_turnover_rate": 1.0,  # 100% annual — containment inspectors churn at 80-150%/yr
+        # Management wind-down lag
+        "mgmt_winddown_weeks": 8,        # Weeks after inspectors go to zero before salaried mgmt headcount reduces
+        # Borrowing base (AR-based LOC sizing)
+        "use_borrowing_base": False,     # If True, LOC draw limited to ar_advance_rate × eligible AR
+        "ar_advance_rate": 0.85,         # 85% advance rate on eligible AR (standard for staffing ABL facilities)
         # Tax rates — for after-tax net income reporting (provision only, not cash tax modeling)
         "sc_state_tax_rate":  0.059,  # South Carolina 2026 corporate/pass-through rate
         "federal_tax_rate":   0.21,   # Federal corporate rate
@@ -132,7 +143,6 @@ def run_model(assumptions: dict, headcount_plan: list):
     start_raw: date = a["start_date"]
     st_bill   = float(a["st_bill_rate"])
     ot_prem   = float(a["ot_bill_premium"])
-    ot_bill   = st_bill * ot_prem
     st_hrs    = int(a["st_hours"])
     ot_hrs    = int(a["ot_hours"])
 
@@ -146,11 +156,10 @@ def run_model(assumptions: dict, headcount_plan: list):
     lead_ot        = int(a["lead_ot_hours"])
     lead_bill_prem = float(a.get("lead_bill_premium", 1.0))
 
-    # Inspector utilization & onboarding amortization
-    utilization         = float(a.get("inspector_utilization", 1.0))
-    onboard_cost        = float(a.get("inspector_onboarding_cost", 500.0))
-    avg_tenure_wks      = max(1, int(a.get("inspector_avg_tenure_weeks", 26)))
-    onboard_wk_per_insp = onboard_cost / avg_tenure_wks   # $ per inspector per week
+    # Inspector utilization & onboarding cost (fired at point of hire, not amortized)
+    utilization  = float(a.get("inspector_utilization", 1.0))
+    onboard_cost = float(a.get("inspector_onboarding_cost", 500.0))
+    # avg_tenure_wks kept for UI compatibility but no longer used in cost formula
 
     gm_loaded   = float(a["gm_loaded_annual"])
     ops_base    = float(a["opscoord_base"])
@@ -252,14 +261,31 @@ def run_model(assumptions: dict, headcount_plan: list):
     df["team_leads"] = df["inspectors"].apply(
         lambda x: ceil(x / tl_ratio) if x > 0 else 0
     )
-    # Management headcount: stays on payroll during inspector gaps.
-    # Carry forward the last active inspector count so management cost persists.
+
+    # Inspector turnover — compute weekly new hires
+    # New hires = incremental headcount growth + replacement of churned workers
+    inspector_to_rate = float(a.get("inspector_turnover_rate", 1.0))
+    insp_series = df["inspectors"].values
+    insp_prev   = np.concatenate([[0], insp_series[:-1]])
+    insp_delta  = np.maximum(0, insp_series - insp_prev)   # only ramp-up, not decreases
+    insp_churn  = insp_series * (inspector_to_rate / 52.0)  # weekly churn at annual rate
+    df["inspector_new_hires"] = insp_delta + insp_churn
+
+    # Management headcount: carries forward through short gaps, but winds down after mgmt_winddown_weeks
+    winddown_wks = int(a.get("mgmt_winddown_weeks", 8))
     _mgmt_basis = []
     _last_active = 0
+    _inactive_wks = 0
     for _insp in df["inspectors"]:
         if _insp > 0:
             _last_active = int(_insp)
-        _mgmt_basis.append(_last_active)
+            _inactive_wks = 0
+        else:
+            _inactive_wks += 1
+        if _inactive_wks > winddown_wks:
+            _mgmt_basis.append(0)
+        else:
+            _mgmt_basis.append(_last_active)
     df["mgmt_insp_basis"] = _mgmt_basis
 
     df["n_opscoord"]    = df["mgmt_insp_basis"].apply(lambda x: ceil(x / ops_span)  if x > 0 else 0)
@@ -273,9 +299,21 @@ def run_model(assumptions: dict, headcount_plan: list):
     df["lead_st_hrs"] = df["team_leads"] * lead_st * utilization
     df["lead_ot_hrs"] = df["team_leads"] * lead_ot * utilization
 
+    # OT bill rate — determined by mode after ot_mult and burden are known
+    ot_bill_mode = a.get("ot_bill_mode", "passthrough")
+    if ot_bill_mode == "passthrough":
+        # Industry standard: pass through the wage increment at cost, keep ST margin intact
+        # ot_bill = st_bill + (inspector_wage × OT_premium_above_1 × (1 + burden))
+        ot_bill = st_bill + (insp_wage * (ot_mult - 1.0) * (1.0 + burden))
+        lead_ot_bill_rate = (st_bill * lead_bill_prem) + (lead_wage * (ot_mult - 1.0) * (1.0 + burden))
+    else:
+        # Markup mode: multiply entire bill rate by premium
+        ot_bill = st_bill * ot_prem
+        lead_ot_bill_rate = (st_bill * lead_bill_prem) * ot_prem
+
     # Lead bill rate can carry a premium over inspector bill rate
     lead_bill_st = st_bill * lead_bill_prem
-    lead_bill_ot = ot_bill * lead_bill_prem
+    lead_bill_ot = lead_ot_bill_rate  # already computed above per mode
 
     df["insp_rev_st"] = df["insp_st_hrs"] * st_bill
     df["insp_rev_ot"] = df["insp_ot_hrs"] * ot_bill
@@ -290,8 +328,8 @@ def run_model(assumptions: dict, headcount_plan: list):
     df["insp_labor_ot"]   = df["inspectors"] * ot_hrs * insp_wage * ot_mult * (1 + burden)
     df["lead_labor_st"]   = df["team_leads"] * lead_st * lead_wage * (1 + burden)
     df["lead_labor_ot"]   = df["team_leads"] * lead_ot * lead_wage * ot_mult * (1 + burden)
-    # Onboarding amortization: spread one-time hire cost over expected tenure
-    df["onboarding_cost_wk"] = df["inspectors"] * onboard_wk_per_insp
+    # Onboarding cost fires at the point of hire, not amortized
+    df["onboarding_cost_wk"] = df["inspector_new_hires"] * onboard_cost
     df["hourly_labor"]  = (df["insp_labor_st"] + df["insp_labor_ot"] +
                            df["lead_labor_st"] + df["lead_labor_ot"] +
                            df["onboarding_cost_wk"])
@@ -362,6 +400,23 @@ def run_model(assumptions: dict, headcount_plan: list):
             if mask_coll.any():
                 df.loc[mask_coll, "collections"] += rev
 
+    # Bad debt: reduce collections by write-off rate (revenue accrued but never collected)
+    bad_debt_pct = float(a.get("bad_debt_pct", 0.0))
+    if bad_debt_pct > 0:
+        df["bad_debt_wk"] = df["collections"] * bad_debt_pct
+        df["collections"]  = df["collections"] * (1.0 - bad_debt_pct)
+    else:
+        df["bad_debt_wk"] = 0.0
+
+    # --- AR roll-forward (must precede cash/LOC loop for borrowing base) ----
+    ar_beg_arr = np.zeros(n)
+    ar_end_arr = np.zeros(n)
+    ar = 0.0
+    for i in range(n):
+        ar_beg_arr[i] = ar
+        ar += df.iloc[i]["statement_amt"] - df.iloc[i]["collections"]
+        ar_end_arr[i] = ar
+
     # --- Sequential cash / LOC model ---------------------------------
     cash_beg  = np.zeros(n)
     cash_end  = np.zeros(n)
@@ -371,6 +426,9 @@ def run_model(assumptions: dict, headcount_plan: list):
     loc_repay = np.zeros(n)
     interest  = np.zeros(n)
     pay_lag   = np.zeros(n)   # hourly payroll cash-out (1-week lag)
+
+    use_bb       = bool(a.get("use_borrowing_base", False))
+    ar_adv_rate  = float(a.get("ar_advance_rate", 0.85))
 
     # Month -> list of row indices (for avg LOC calculation)
     mo_rows: dict[int, list] = {}
@@ -417,7 +475,14 @@ def run_model(assumptions: dict, headcount_plan: list):
         draw = repay = 0.0
 
         if tentative < target:
-            room  = max(0.0, max_loc - loc)
+            # Borrowing base: limit draw to advance rate × prior week's eligible AR
+            if use_bb and i > 0:
+                eligible_ar = ar_end_arr[i - 1]   # prior week closing AR
+                borrowing_base_i = eligible_ar * ar_adv_rate
+                eff_max = min(borrowing_base_i, max_loc)
+            else:
+                eff_max = max_loc
+            room  = max(0.0, eff_max - loc)
             draw  = min(target - tentative, room)
             loc   += draw
             tentative += draw
@@ -443,17 +508,16 @@ def run_model(assumptions: dict, headcount_plan: list):
     df["loc_begin"]        = loc_beg
     df["loc_end"]          = loc_end
 
-    # --- AR roll-forward ---------------------------------------------
-    ar_beg_arr = np.zeros(n)
-    ar_end_arr = np.zeros(n)
-    ar = 0.0
-    for i in range(n):
-        ar_beg_arr[i] = ar
-        ar += df.iloc[i]["statement_amt"] - df.iloc[i]["collections"]
-        ar_end_arr[i] = ar
-
     df["ar_begin"] = ar_beg_arr
     df["ar_end"]   = ar_end_arr
+
+    # --- Borrowing base tracking columns ----------------------------
+    if use_bb:
+        df["borrowing_base"] = np.concatenate([[0], ar_end_arr[:-1]]) * ar_adv_rate
+        df["borrowing_base"] = df["borrowing_base"].clip(upper=max_loc)
+    else:
+        df["borrowing_base"] = max_loc
+    df["loc_headroom"] = df["borrowing_base"] - df["loc_end"]
 
     # --- Validation flags --------------------------------------------
     df["warn_loc_maxed"]   = df["loc_end"] > max_loc + 0.01
@@ -507,9 +571,11 @@ def _build_monthly(df: pd.DataFrame, assumptions: dict) -> pd.DataFrame:
                  interest        =("interest_paid",    "sum"),
                  loc_draw        =("loc_draw",         "sum"),
                  loc_repay       =("loc_repay",        "sum"),
-                 ar_end          =("ar_end",           "last"),
-                 loc_end         =("loc_end",          "last"),
-                 cash_end        =("cash_end",         "last"),
+                 ar_end              =("ar_end",               "last"),
+                 loc_end             =("loc_end",              "last"),
+                 cash_end            =("cash_end",             "last"),
+                 inspector_new_hires =("inspector_new_hires",  "sum"),
+                 bad_debt_cash       =("bad_debt_wk",          "sum"),
              )
              .reset_index())
 
@@ -530,6 +596,29 @@ def _build_monthly(df: pd.DataFrame, assumptions: dict) -> pd.DataFrame:
     agg["net_margin_after_tax"] = np.where(agg["revenue"] > 0,
                                            agg["net_income_after_tax"] / agg["revenue"], 0.0)
     agg["peak_loc_to_date"]     = agg["loc_end"].cummax()
+
+    # DSO: accounts receivable days — AR / (monthly revenue / 30)
+    agg["dso"] = np.where(
+        agg["revenue"] > 0,
+        agg["ar_end"] / (agg["revenue"] / 30.0),
+        0.0
+    )
+
+    # LOC utilization %
+    _max_loc_val = float(assumptions.get("max_loc", 1_000_000))
+    agg["loc_utilization"] = agg["loc_end"] / _max_loc_val if _max_loc_val > 0 else 0.0
+
+    # FCCR: simplified as EBITDA / interest (interest coverage)
+    agg["fccr"] = np.where(
+        agg["interest"] > 0,
+        agg["ebitda"] / agg["interest"],
+        np.where(agg["ebitda"] > 0, 99.0, 0.0)   # 99 = unconstrained; 0 = unprofitable
+    )
+
+    # Bad debt expense (monthly)
+    _bad_debt_pct = float(assumptions.get("bad_debt_pct", 0.0))
+    agg["bad_debt_expense"] = agg["revenue"] * _bad_debt_pct
+
     agg["period"]               = agg["month_idx"].apply(lambda i: f"M{int(i)+1}")
     return agg
 
