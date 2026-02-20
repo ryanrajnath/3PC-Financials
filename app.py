@@ -430,7 +430,7 @@ with ctrl1:
         _preset_label = f"{_preset_label} (Modified)"
     preset_choice = st.selectbox(
         "Scenario", ["— load preset —"] + list(PRESETS.keys()),
-        key="top_preset",
+        index=0,
         help=f"Active: {_preset_label}"
     )
     if preset_choice != "— load preset —":
@@ -439,7 +439,7 @@ with ctrl1:
         st.session_state.headcount_plan     = p["headcount"].copy()
         st.session_state.active_preset      = preset_choice
         st.session_state.preset_assumptions = p["assumptions"].copy()
-        del st.session_state["top_preset"]   # reset selectbox to placeholder on next render
+        run_and_store()
         st.rerun()
     if _is_modified():
         st.caption(f"*{_preset_label}*")
