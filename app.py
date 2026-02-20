@@ -29,6 +29,18 @@ st.set_page_config(
 # ── CSS ──────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
+/* ── Kill Streamlit dim-during-run overlay ───────────────────────────── */
+.stApp [data-testid="stAppViewBlockContainer"] { opacity: 1 !important; }
+.stApp > div { opacity: 1 !important; }
+div[data-testid="stStatusWidget"] { opacity: 1 !important; }
+/* Override the running-state fade Streamlit injects */
+.stMain, .main, .block-container,
+[data-testid="stMain"], [data-testid="stVerticalBlock"],
+[data-testid="stHorizontalBlock"] {
+    opacity: 1 !important;
+    transition: none !important;
+}
+
 /* ── Chrome ─────────────────────────────────────────────────────────── */
 #MainMenu, footer { visibility: hidden; }
 header { visibility: hidden; height: 0; }
@@ -37,22 +49,23 @@ header { visibility: hidden; height: 0; }
 /* ── Tab Navigation ─────────────────────────────────────────────────── */
 .stTabs [data-baseweb="tab-list"] {
     background: transparent !important;
-    border-bottom: 1px solid #1A2744 !important;
+    border-bottom: 1px solid #1E3A6E !important;
     gap: 0 !important;
     padding: 0 !important;
 }
 .stTabs [data-baseweb="tab"] {
     background: transparent !important;
-    color: #4B5D78 !important;
+    color: #5B7BA8 !important;
     border-radius: 0 !important;
     padding: 10px 22px !important;
     font-size: 13px !important;
     font-weight: 500 !important;
+    letter-spacing: 0.3px !important;
 }
-.stTabs [data-baseweb="tab"]:hover { color: #94A3B8 !important; background: transparent !important; }
+.stTabs [data-baseweb="tab"]:hover { color: #B8CFEA !important; background: rgba(59,130,246,0.06) !important; }
 .stTabs [aria-selected="true"][data-baseweb="tab"] {
-    color: #3B82F6 !important;
-    font-weight: 600 !important;
+    color: #60A5FA !important;
+    font-weight: 700 !important;
     background: transparent !important;
 }
 .stTabs [data-baseweb="tab-highlight"] {
@@ -64,45 +77,57 @@ header { visibility: hidden; height: 0; }
 
 /* ── KPI cards ──────────────────────────────────────────────────────── */
 .kpi-card {
-    background: linear-gradient(160deg, #0C1424 0%, #0F1E3C 100%);
-    border: 1px solid #1A2F5C;
+    background: linear-gradient(160deg, #0B1628 0%, #0E2040 100%);
+    border: 1px solid #1E3A6E;
     border-top: 2px solid #3B82F6;
     border-radius: 10px;
     padding: 16px 18px;
     text-align: center;
 }
-.kpi-label { color: #4B5D78; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
-.kpi-value { color: #F1F5F9; font-size: 22px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.kpi-sub   { color: #3B82F6; font-size: 11px; margin-top: 4px; }
+.kpi-label { color: #6B88AD; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
+.kpi-value { color: #F8FAFC; font-size: 22px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi-sub   { color: #60A5FA; font-size: 11px; margin-top: 4px; }
 
 /* ── Alert / status boxes ───────────────────────────────────────────── */
-.stale-box  { background: rgba(245,158,11,0.08);  border: 1px solid rgba(245,158,11,0.25); border-left: 3px solid #F59E0B; padding: 10px 14px; border-radius: 8px; font-size: 12px; color: #FCD34D; }
-.warn-box   { background: rgba(239,68,68,0.07);   border: 1px solid rgba(239,68,68,0.2);   border-left: 3px solid #EF4444; padding: 10px 14px; border-radius: 8px; font-size: 12px; color: #FCA5A5; }
-.info-box   { background: rgba(59,130,246,0.07);  border: 1px solid rgba(59,130,246,0.2);  border-left: 3px solid #3B82F6; padding: 10px 14px; border-radius: 8px; font-size: 12px; color: #93C5FD; }
-.status-ok  { background: rgba(16,185,129,0.08);  border: 1px solid rgba(16,185,129,0.25); padding: 8px 14px; border-radius: 8px; font-size: 11px; color: #6EE7B7; }
-.status-stale { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); padding: 8px 14px; border-radius: 8px; font-size: 11px; color: #FCD34D; }
+.stale-box  { background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.40); border-left: 3px solid #F59E0B; padding: 10px 14px; border-radius: 8px; font-size: 12px; color: #FDE68A; }
+.warn-box   { background: rgba(239,68,68,0.10);  border: 1px solid rgba(239,68,68,0.35);  border-left: 3px solid #EF4444; padding: 10px 14px; border-radius: 8px; font-size: 12px; color: #FCA5A5; }
+.info-box   { background: rgba(59,130,246,0.10); border: 1px solid rgba(59,130,246,0.35); border-left: 3px solid #3B82F6; padding: 10px 14px; border-radius: 8px; font-size: 12px; color: #BFDBFE; }
+.status-ok  { background: rgba(16,185,129,0.10); border: 1px solid rgba(16,185,129,0.35); padding: 8px 14px; border-radius: 8px; font-size: 11px; color: #A7F3D0; }
+.status-stale { background: rgba(245,158,11,0.10); border: 1px solid rgba(245,158,11,0.35); padding: 8px 14px; border-radius: 8px; font-size: 11px; color: #FDE68A; }
 
 /* ── Section headers ─────────────────────────────────────────────────── */
 .sec-hdr {
     display: flex; align-items: center; gap: 10px;
-    color: #3B82F6; font-size: 9px; text-transform: uppercase;
-    letter-spacing: 2px; margin: 20px 0 10px 0;
+    color: #60A5FA; font-size: 9px; text-transform: uppercase;
+    letter-spacing: 2px; margin: 24px 0 12px 0;
+    font-weight: 600;
 }
 .sec-hdr::after {
     content: ''; flex: 1; height: 1px;
-    background: linear-gradient(90deg, #1A2F5C 0%, transparent 100%);
+    background: linear-gradient(90deg, #1E3A6E 0%, transparent 100%);
 }
 
 /* ── App header ─────────────────────────────────────────────────────── */
 .app-hdr {
-    background: linear-gradient(135deg, #0C1424 0%, #0F1E3C 100%);
-    border: 1px solid #1A2F5C;
+    background: linear-gradient(135deg, #0B1628 0%, #0E2040 100%);
+    border: 1px solid #1E3A6E;
+    border-left: 4px solid #3B82F6;
     border-radius: 12px;
     padding: 14px 22px;
     margin-bottom: 14px;
 }
-.app-hdr-title { font-size: 18px; font-weight: 700; color: #F1F5F9; letter-spacing: -0.3px; }
-.app-hdr-sub   { font-size: 10px; color: #3B82F6; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 3px; }
+.app-hdr-title { font-size: 20px; font-weight: 700; color: #F8FAFC; letter-spacing: -0.3px; }
+.app-hdr-sub   { font-size: 10px; color: #60A5FA; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
+
+/* ── Sidebar contrast boost ─────────────────────────────────────────── */
+[data-testid="stSidebar"] {
+    background: #060E1C !important;
+    border-right: 1px solid #1E3A6E !important;
+}
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] .stMarkdown p {
+    color: #CBD5E1 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -752,14 +777,19 @@ with tab_dash:
     section("Credit Line, Cash & Accounts Receivable")
 
     # Detect management milestone months (first appearance of each role)
+    # Returns integer index (for add_vline on categorical axes) and label
     def _first_month(df, col):
         rows = df[df[col] > 0]
-        return rows.iloc[0]["period"] if len(rows) else None
+        if not len(rows):
+            return None, None
+        idx = rows.index[0]
+        label = rows.iloc[0]["period"]
+        return idx, label
 
-    m_tl  = _first_month(mo, "team_leads_avg")
-    m_oc  = _first_month(mo, "n_opscoord")
-    m_fs  = _first_month(mo, "n_fieldsup")
-    m_rm  = _first_month(mo, "n_regionalmgr")
+    m_tl,  m_tl_lbl  = _first_month(mo, "team_leads_avg")
+    m_oc,  m_oc_lbl  = _first_month(mo, "n_opscoord")
+    m_fs,  m_fs_lbl  = _first_month(mo, "n_fieldsup")
+    m_rm,  m_rm_lbl  = _first_month(mo, "n_regionalmgr")
 
     fig_loc = go.Figure()
     fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["loc_end"],  name="Credit Line Balance",
@@ -771,17 +801,17 @@ with tab_dash:
     fig_loc.add_hline(y=float(a["max_loc"]), line_dash="dot", line_color=PC[3],
                       annotation_text="Credit Limit", annotation_font_color=PC[3])
 
-    # Milestone vertical lines
+    # Milestone vertical lines (use integer index for categorical x-axis)
     _milestones = [
-        (m_tl, "1st Team Lead", PC[0]),
-        (m_oc, "1st Ops Coord", PC[4]),
-        (m_fs, "1st Field Sup", PC[2]),
-        (m_rm, "1st Reg. Mgr",  PC[5]),
+        (m_tl, m_tl_lbl, "1st Team Lead", PC[0]),
+        (m_oc, m_oc_lbl, "1st Ops Coord", PC[4]),
+        (m_fs, m_fs_lbl, "1st Field Sup", PC[2]),
+        (m_rm, m_rm_lbl, "1st Reg. Mgr",  PC[5]),
     ]
-    for _mp, _ml, _mc in _milestones:
-        if _mp:
-            fig_loc.add_vline(x=_mp, line_dash="dot", line_color=_mc, line_width=1,
-                              annotation_text=_ml, annotation_font_color=_mc,
+    for _mi, _mp, _ml, _mc in _milestones:
+        if _mi is not None:
+            fig_loc.add_vline(x=int(_mi), line_dash="dot", line_color=_mc, line_width=1,
+                              annotation_text=f"{_ml} ({_mp})", annotation_font_color=_mc,
                               annotation_position="top left")
 
     fig_loc.update_layout(template=TPL, height=340, margin=dict(l=10,r=10,t=10,b=10),
@@ -811,12 +841,12 @@ with tab_dash:
                      annotation_text="Break-Even", annotation_font_color="#EF4444",
                      annotation_position="bottom right")
 
-    # Annotate zero crossing
+    # Annotate zero crossing (use integer index for categorical x-axis)
     _pos_rows = mo_cf[mo_cf["cumulative_ni"] > 0]
     if len(_pos_rows):
+        _cross_idx    = _pos_rows.index[0]
         _cross_period = _pos_rows.iloc[0]["period"]
-        _cross_val    = float(_pos_rows.iloc[0]["cumulative_ni"])
-        fig_cf.add_vline(x=_cross_period, line_dash="dot", line_color=PC[1], line_width=1,
+        fig_cf.add_vline(x=int(_cross_idx), line_dash="dot", line_color=PC[1], line_width=1,
                          annotation_text=f"Cumulative breakeven: {_cross_period}",
                          annotation_font_color=PC[1], annotation_position="top left")
 
