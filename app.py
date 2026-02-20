@@ -23,52 +23,57 @@ warnings.filterwarnings("ignore")
 st.set_page_config(
     page_title="Containment Division Calculator",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # ── CSS ──────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* Remove Streamlit chrome that overlaps content */
+/* Hide Streamlit chrome */
 #MainMenu, footer { visibility: hidden; }
 header { visibility: hidden; height: 0; }
-
-/* Layout */
-.block-container { padding-top: 1rem; padding-bottom: 1rem; }
+.block-container { padding-top: 1rem; padding-bottom: 2rem; }
 
 /* KPI cards */
 .kpi-card {
-    background: #1A1D27;
-    border: 1px solid #2D3148;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
     border-radius: 10px;
-    padding: 14px 18px;
+    padding: 16px 20px;
     text-align: center;
     height: 100%;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
-.kpi-label { color: #8B8FA8; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
-.kpi-value { color: #FAFAFA; font-size: 22px; font-weight: 700; line-height: 1.1; }
-.kpi-sub   { color: #4F8BF9; font-size: 11px; margin-top: 3px; }
+.kpi-label { color: #64748B; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.kpi-value { color: #1E293B; font-size: 24px; font-weight: 700; line-height: 1.1; }
+.kpi-sub   { color: #2563EB; font-size: 11px; margin-top: 4px; }
 
-/* Alerts */
-.stale-box { background:#2D2510; border-left:3px solid #F0A843; padding:8px 12px; border-radius:4px; font-size:13px; margin-bottom:8px; }
-.warn-box  { background:#2D1F1F; border-left:3px solid #E05252; padding:8px 12px; border-radius:4px; font-size:13px; margin-bottom:6px; }
-.info-box  { background:#1A2235; border-left:3px solid #4F8BF9; padding:8px 12px; border-radius:4px; font-size:13px; margin-bottom:6px; }
+/* Alert boxes */
+.stale-box { background:#FFFBEB; border-left:3px solid #D97706; padding:10px 14px; border-radius:6px; font-size:13px; margin-bottom:10px; color:#92400E; }
+.warn-box  { background:#FEF2F2; border-left:3px solid #DC2626; padding:10px 14px; border-radius:6px; font-size:13px; margin-bottom:8px; color:#991B1B; }
+.info-box  { background:#EFF6FF; border-left:3px solid #2563EB; padding:10px 14px; border-radius:6px; font-size:13px; margin-bottom:8px; color:#1E40AF; }
 
 /* Section headers */
 .sec-hdr {
-    color: #8B8FA8; font-size: 10px; text-transform: uppercase;
-    letter-spacing: 1.5px; margin: 6px 0 4px 0;
-    border-bottom: 1px solid #2D3148; padding-bottom: 2px;
+    color: #64748B; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 1.5px; margin: 14px 0 6px 0;
+    border-bottom: 1px solid #E2E8F0; padding-bottom: 4px;
 }
 
-/* Sidebar width */
-[data-testid="stSidebar"] { min-width: 320px !important; max-width: 320px !important; }
-[data-testid="stSidebar"] .block-container { padding-top: 0.75rem; padding-bottom: 1rem; }
+/* Action bar */
+.action-bar {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    padding: 12px 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
 </style>
 """, unsafe_allow_html=True)
 
-PC  = ["#4F8BF9", "#52D68A", "#F0A843", "#E05252", "#A855F7", "#22D3EE"]
-TPL = "plotly_dark"
+PC  = ["#2563EB", "#059669", "#D97706", "#DC2626", "#7C3AED", "#0891B2"]
+TPL = "plotly_white"
 
 
 # ── Session state ─────────────────────────────────────────────────────────────
@@ -235,430 +240,34 @@ if not st.session_state.bootstrapped:
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# SIDEBAR — All inputs
+# MAIN AREA — Header + KPIs
 # ════════════════════════════════════════════════════════════════════════════
-with st.sidebar:
-    a = st.session_state.assumptions
 
-    # ── Calculate button ─────────────────────────────────────────────────────
-    btn_lbl = "▶  Calculate" + (f"  ·  {st.session_state.run_ts}" if st.session_state.run_ts else "")
+# ── Top action bar ────────────────────────────────────────────────────────
+ab1, ab2, ab3, ab4 = st.columns([2, 1, 1, 2])
+with ab1:
+    st.markdown("### Containment Division Calculator")
+    st.caption("OpSource · 10-year weekly cash model")
+with ab2:
+    preset_choice = st.selectbox(
+        "Scenario", ["— preset —"] + list(PRESETS.keys()),
+        label_visibility="collapsed", key="top_preset"
+    )
+    if preset_choice != "— preset —":
+        p = PRESETS[preset_choice]
+        st.session_state.assumptions    = p["assumptions"].copy()
+        st.session_state.headcount_plan = p["headcount"].copy()
+        st.rerun()
+with ab3:
+    btn_lbl = "▶  Calculate"
     if st.button(btn_lbl, type="primary", use_container_width=True):
         run_and_store()
         st.rerun()
-
+with ab4:
     if is_stale():
-        st.markdown(
-            '<div class="stale-box">Inputs changed — click <b>Calculate</b> to update.</div>',
-            unsafe_allow_html=True
-        )
-
-    st.divider()
-
-    # ── Preset scenarios ─────────────────────────────────────────────────────
-    section("Scenario Presets")
-    preset_choice = st.selectbox(
-        "Scenario", ["— select —"] + list(PRESETS.keys()),
-        label_visibility="collapsed",
-        help="Load a pre-built scenario as a starting point. You can adjust any value after loading."
-    )
-    if preset_choice != "— select —":
-        if st.button(f"Load  '{preset_choice}'", use_container_width=True):
-            p = PRESETS[preset_choice]
-            st.session_state.assumptions    = p["assumptions"].copy()
-            st.session_state.headcount_plan = p["headcount"].copy()
-            a = st.session_state.assumptions
-            st.rerun()
-
-    st.divider()
-
-    # ── Pricing ───────────────────────────────────────────────────────────────
-    section("Pricing")
-    a["st_bill_rate"] = st.slider(
-        "Bill Rate ($/hr, regular time)",
-        min_value=28.0, max_value=65.0, value=float(a["st_bill_rate"]),
-        step=0.50, format="$%.2f",
-        help="Hourly rate charged to the customer per inspector during regular work hours."
-    )
-    a["ot_hours"] = st.slider(
-        "Planned Overtime Hours / Inspector / Week",
-        min_value=0, max_value=25, value=int(a["ot_hours"]), step=1,
-        help="Average overtime hours per inspector per week. OT is billed at 1.5× the regular rate. Set to 0 if you don't plan overtime."
-    )
-    a["ot_bill_premium"] = st.number_input(
-        "OT Billing Multiplier", min_value=1.0, max_value=3.0,
-        value=float(a["ot_bill_premium"]), step=0.25, format="%.2f",
-        help=f"Overtime hours are billed at this multiple of the regular rate. At {a['ot_bill_premium']}×, OT bills at ${a['st_bill_rate'] * a['ot_bill_premium']:.2f}/hr."
-    )
-    a["st_hours"] = st.number_input(
-        "Regular Hours / Inspector / Week", min_value=20, max_value=60,
-        value=int(a["st_hours"]), step=1, format="%d",
-        help="Standard work hours per inspector per week, not counting overtime. Typically 40."
-    )
-
-    a["lead_bill_premium"] = st.number_input(
-        "Team Lead Bill Rate Multiplier", min_value=1.0, max_value=2.0,
-        value=float(a.get("lead_bill_premium", 1.0)), step=0.05, format="%.2f",
-        help="Team leads are billed at this multiple of the regular inspector rate. "
-             "1.0 = same rate as inspectors (most common). 1.1 = 10% premium for supervisory labor."
-    )
-
-    # Live margin preview
-    _ot_bill    = a["st_bill_rate"] * a["ot_bill_premium"]
-    _util       = float(a.get("inspector_utilization", 1.0))
-    _wk_rev     = _util * (a["st_hours"] * a["st_bill_rate"] + a["ot_hours"] * _ot_bill)
-    _ob_wk      = float(a.get("inspector_onboarding_cost", 500)) / max(1, int(a.get("inspector_avg_tenure_weeks", 26)))
-    _wk_cost    = (a["st_hours"] * a["inspector_wage"] * (1 + a["burden"]) +
-                   a["ot_hours"] * a["inspector_wage"] * a["ot_pay_multiplier"] * (1 + a["burden"]) +
-                   _ob_wk)
-    _margin     = (_wk_rev - _wk_cost) / _wk_rev if _wk_rev else 0
-    st.caption(f"Per inspector/week: **${_wk_rev:,.0f} revenue** · **${_wk_cost:,.0f} cost** · **{_margin:.0%} margin**")
-
-    st.divider()
-
-    # ── Inspector Pay ─────────────────────────────────────────────────────────
-    section("Inspector Pay")
-    a["inspector_wage"] = st.number_input(
-        "Hourly Wage ($/hr)", min_value=10.0, max_value=50.0,
-        value=float(a["inspector_wage"]), step=0.25, format="%.2f",
-        help="Base hourly pay for inspectors before employer taxes and benefits."
-    )
-    _burden_pct = st.slider(
-        "Payroll Burden (%)",
-        min_value=15, max_value=55, value=int(round(a["burden"] * 100)), step=1,
-        format="%d%%",
-        help="Employer cost on top of wages: FICA (~7.65%), state/federal unemployment, workers' comp, and benefits. 30% is a common starting estimate."
-    )
-    a["burden"] = _burden_pct / 100.0
-    a["ot_pay_multiplier"] = st.number_input(
-        "OT Pay Multiplier", min_value=1.0, max_value=3.0,
-        value=float(a["ot_pay_multiplier"]), step=0.25, format="%.2f",
-        help=f"Inspectors earn this multiple of base pay for overtime. At {a['ot_pay_multiplier']}×: ${a['inspector_wage'] * a['ot_pay_multiplier']:.2f}/hr OT pay."
-    )
-    _util_pct = st.slider(
-        "Inspector Utilization Rate (%)", min_value=50, max_value=100,
-        value=int(round(float(a.get("inspector_utilization", 1.0)) * 100)), step=1, format="%d%%",
-        help="Percentage of scheduled inspector hours that are actually billed to the client. "
-             "100% assumes every scheduled hour is productive and billable. In practice, "
-             "travel days, site startups, and between-project gaps reduce this — 85–95% is typical. "
-             "Note: you still pay inspectors for all scheduled hours; only revenue is reduced."
-    )
-    a["inspector_utilization"] = _util_pct / 100.0
-    a["inspector_onboarding_cost"] = st.number_input(
-        "Inspector Onboarding Cost per Hire ($)", min_value=0.0,
-        value=float(a.get("inspector_onboarding_cost", 500.0)), step=50., format="%.0f",
-        help="One-time cost each time you hire a new inspector: background check (~$150), "
-             "drug screen (~$80), PPE, and orientation (~$270). Amortized weekly over expected tenure."
-    )
-    a["inspector_avg_tenure_weeks"] = st.number_input(
-        "Average Inspector Tenure (weeks)", min_value=4, max_value=260,
-        value=int(a.get("inspector_avg_tenure_weeks", 26)), step=4, format="%d",
-        help="How long the average inspector stays before leaving. 26 weeks (~6 months) is typical "
-             "for third-party containment — high-turnover, physically demanding work. "
-             "Shorter tenure = higher amortized onboarding cost per week."
-    )
-    _ob_per_wk = a["inspector_onboarding_cost"] / max(1, a["inspector_avg_tenure_weeks"])
-    st.caption(f"Onboarding adds **${_ob_per_wk:.2f}/inspector/week** to labor cost")
-
-    st.divider()
-
-    # ── Team Leads ────────────────────────────────────────────────────────────
-    section("Team Leads")
-    st.caption("Hourly supervisors billed to the client like inspectors, at a higher wage.")
-    a["team_lead_ratio"] = st.slider(
-        "Inspectors per Team Lead",
-        min_value=5, max_value=25, value=int(a["team_lead_ratio"]), step=1,
-        help="One team lead is assigned for every N inspectors (rounded up). At 12: a crew of 25 inspectors has 3 team leads."
-    )
-    a["lead_wage"] = st.number_input(
-        "Team Lead Hourly Wage ($/hr)", min_value=10.0, max_value=60.0,
-        value=float(a["lead_wage"]), step=0.25, format="%.2f",
-        help="Base hourly pay for team leads before burden. Typically $3–6 more per hour than inspector wage."
-    )
-    a["lead_ot_hours"] = st.number_input(
-        "Team Lead OT Hours / Week", min_value=0, max_value=25,
-        value=int(a["lead_ot_hours"]), step=1, format="%d",
-        help="Overtime hours per team lead per week. Usually matches inspector OT hours."
-    )
-    a["lead_st_hours"] = st.number_input(
-        "Team Lead Regular Hours / Week", min_value=20, max_value=60,
-        value=int(a["lead_st_hours"]), step=1, format="%d",
-        help="Standard (non-OT) work hours per team lead per week."
-    )
-
-    st.divider()
-
-    # ── Customer Payment Terms ────────────────────────────────────────────────
-    section("Customer Payment Terms")
-    _billing_options = ["Monthly (standard)", "Weekly (faster cash flow)"]
-    _billing_idx = 0 if a.get("billing_frequency", "monthly") == "monthly" else 1
-    _billing_sel = st.radio(
-        "Invoice Frequency",
-        _billing_options,
-        index=_billing_idx,
-        horizontal=True,
-        help=(
-            "**Monthly:** One invoice sent at month-end for all work that month. Standard practice but "
-            "means your credit line must fund 4–5 weeks of payroll before any cash comes in.\n\n"
-            "**Weekly:** Invoice every Friday for that week's work. Collections arrive ~8–9 weeks sooner "
-            "on average, reducing peak credit line need by $200K–$400K depending on headcount."
-        )
-    )
-    a["billing_frequency"] = "monthly" if _billing_sel == "Monthly (standard)" else "weekly"
-    a["net_days"] = st.slider(
-        "Days to Payment After Month-End Invoice",
-        min_value=15, max_value=180, value=int(a["net_days"]), step=5,
-        help="How long after you send the month-end invoice until customers typically pay. This is the single biggest driver of how large your credit line needs to be. Net 60 is standard in third-party containment."
-    )
-    a["start_date"] = st.date_input(
-        "Model Start Date", value=a["start_date"],
-        help="The first day of the model. All dates, months, and years are calculated forward from here."
-    )
-
-    st.divider()
-
-    # ── Credit Line ───────────────────────────────────────────────────────────
-    section("Credit Line")
-    st.caption("Funds payroll while waiting for customers to pay their invoices.")
-    a["max_loc"] = st.number_input(
-        "Maximum Credit Line ($)", min_value=0.0,
-        value=float(a["max_loc"]), step=50_000., format="%.0f",
-        help="Your bank's maximum credit limit. The model warns you if cash needs exceed this amount."
-    )
-    _apr_pct = st.slider(
-        "Annual Interest Rate (%)",
-        min_value=4.0, max_value=20.0, value=round(float(a["apr"]) * 100, 2),
-        step=0.25, format="%.2f%%",
-        help="APR charged on the outstanding credit line balance. Interest is calculated monthly on the average weekly balance."
-    )
-    a["apr"] = _apr_pct / 100.0
-    a["initial_cash"] = st.number_input(
-        "Starting Cash ($)", min_value=0.0,
-        value=float(a["initial_cash"]), step=5_000., format="%.0f",
-        help="Cash on hand at the start of the model. Enter 0 if the division launches with no cash reserves."
-    )
-    a["cash_buffer"] = st.number_input(
-        "Minimum Cash Reserve ($)", min_value=0.0,
-        value=float(a["cash_buffer"]), step=5_000., format="%.0f",
-        help="The model keeps at least this much cash on hand at all times, drawing on the credit line when needed. Acts as a weekly payroll safety net."
-    )
-    a["auto_paydown"] = st.checkbox(
-        "Auto-repay credit line when cash exceeds reserve",
-        value=bool(a["auto_paydown"]),
-        help="When ON, any cash above the minimum reserve automatically pays down the credit line balance to reduce interest costs."
-    )
-    _mo_int = (a["apr"] / 12) * a["max_loc"]
-    st.caption(f"Interest at full draw: **${_mo_int:,.0f}/month**")
-
-    st.divider()
-
-    # ── Salaried Management ───────────────────────────────────────────────────
-    with st.expander("Salaried Management"):
-        st.caption("These roles are added automatically as inspector count grows. Each costs the same every week regardless of hours worked.")
-
-        a["gm_loaded_annual"] = st.number_input(
-            "General Manager — Total Annual Cost ($)", min_value=0.0,
-            value=float(a["gm_loaded_annual"]), step=1_000., format="%.0f",
-            help="All-in annual cost for the GM including salary, bonus, and benefits. Enter the fully loaded number — do not add burden on top. Active from Month 1."
-        )
-
-        st.markdown("**Operations Coordinator**")
-        st.caption("Manages scheduling, dispatch, and client communication from the office.")
-        c1, c2 = st.columns(2)
-        a["opscoord_base"] = c1.number_input(
-            "Base Salary ($)", min_value=0.0, value=float(a["opscoord_base"]),
-            step=1_000., format="%.0f", key="oc_sal",
-            help="Annual base salary. The management burden rate is added on top to get fully loaded cost."
-        )
-        a["opscoord_span"] = c2.number_input(
-            "Per N inspectors", min_value=10, value=int(a["opscoord_span"]),
-            step=5, format="%d", key="oc_sp",
-            help="One Ops Coordinator is added per N inspectors. Default: 1 per 75 inspectors."
-        )
-
-        st.markdown("**Field Supervisor**")
-        st.caption("Travels to job sites and directly manages inspector crews in the field.")
-        c1, c2 = st.columns(2)
-        a["fieldsup_base"] = c1.number_input(
-            "Base Salary ($)", min_value=0.0, value=float(a["fieldsup_base"]),
-            step=1_000., format="%.0f", key="fs_sal",
-            help="Annual base salary. Management burden is added on top."
-        )
-        a["fieldsup_span"] = c2.number_input(
-            "Per N inspectors", min_value=5, value=int(a["fieldsup_span"]),
-            step=5, format="%d", key="fs_sp",
-            help="One Field Supervisor per N inspectors. Default: 1 per 25 (each supervisor oversees one crew of ~25 workers across multiple sites)."
-        )
-
-        st.markdown("**Regional Manager**")
-        st.caption("Oversees Field Supervisors across a geographic area. Typically not needed until 175+ inspectors.")
-        c1, c2 = st.columns(2)
-        a["regionalmgr_base"] = c1.number_input(
-            "Base Salary ($)", min_value=0.0, value=float(a["regionalmgr_base"]),
-            step=1_000., format="%.0f", key="rm_sal",
-            help="Annual base salary. Management burden is added on top."
-        )
-        a["regionalmgr_span"] = c2.number_input(
-            "Per N inspectors", min_value=50, value=int(a["regionalmgr_span"]),
-            step=10, format="%d", key="rm_sp",
-            help="One Regional Manager per N inspectors. Default: 1 per 175."
-        )
-
-        _mgmt_burden_pct = st.slider(
-            "Management Burden Rate (%)", min_value=10, max_value=40,
-            value=int(round(a["mgmt_burden"] * 100)), step=1, format="%d%%",
-            help="Employer taxes and benefits applied to management base salaries. Does NOT apply to the GM (GM cost is already fully loaded)."
-        )
-        a["mgmt_burden"] = _mgmt_burden_pct / 100.0
-
-        def _loaded(base): return base * (1 + a["mgmt_burden"])
-        st.caption(
-            f"Fully loaded: OC **${_loaded(a['opscoord_base']):,.0f}** · "
-            f"FS **${_loaded(a['fieldsup_base']):,.0f}** · "
-            f"RM **${_loaded(a['regionalmgr_base']):,.0f}**"
-        )
-
-    # ── Management Turnover ───────────────────────────────────────────────────
-    with st.expander("Management Turnover & Replacement Cost"):
-        st.caption(
-            "The model estimates the ongoing cost of replacing management roles when they turn over — "
-            "recruiting, background screening, and lost productivity during ramp-up. "
-            "This cost scales with how many of each role you have active."
-        )
-        st.markdown("**Industry benchmarks (BLS JOLTS + SHRM 2024 — field operations sector)**")
-
-        _oc_to_pct = st.slider(
-            "Ops Coordinator — Annual Turnover (%)",
-            min_value=10, max_value=70, value=int(round(a.get("opscoord_turnover", 0.35) * 100)),
-            step=1, format="%d%%",
-            help="What fraction of your Ops Coordinators leave each year. At 35%, a team of 2 loses roughly 1 person every 18 months. Scheduling roles see high turnover due to stress and limited advancement."
-        )
-        a["opscoord_turnover"] = _oc_to_pct / 100.0
-        a["opscoord_replace_cost"] = st.number_input(
-            "Ops Coordinator — Replacement Cost ($)", min_value=0.0,
-            value=float(a.get("opscoord_replace_cost", 8_000)), step=500., format="%.0f",
-            key="oc_rc",
-            help="Total cost to replace one Ops Coordinator: job board posting, background/drug screen, HR time, and ~4 weeks at reduced productivity. Industry average: ~$8,000."
-        )
-
-        _fs_to_pct = st.slider(
-            "Field Supervisor — Annual Turnover (%)",
-            min_value=10, max_value=60, value=int(round(a.get("fieldsup_turnover", 0.25) * 100)),
-            step=1, format="%d%%",
-            help="Field Supervisors are frequently poached by OEMs and Tier-1 suppliers offering higher base pay. At 25%, you replace roughly 1 in 4 per year."
-        )
-        a["fieldsup_turnover"] = _fs_to_pct / 100.0
-        a["fieldsup_replace_cost"] = st.number_input(
-            "Field Supervisor — Replacement Cost ($)", min_value=0.0,
-            value=float(a.get("fieldsup_replace_cost", 12_000)), step=500., format="%.0f",
-            key="fs_rc",
-            help="Higher than Ops Coord because hands-on containment experience is required. May include a recruiter fee. Industry average: ~$12,000."
-        )
-
-        _rm_to_pct = st.slider(
-            "Regional Manager — Annual Turnover (%)",
-            min_value=5, max_value=40, value=int(round(a.get("regionalmgr_turnover", 0.18) * 100)),
-            step=1, format="%d%%",
-            help="Better compensation and authority improve retention at this level. At 18%, you replace a Regional Manager roughly every 5–6 years."
-        )
-        a["regionalmgr_turnover"] = _rm_to_pct / 100.0
-        a["regionalmgr_replace_cost"] = st.number_input(
-            "Regional Manager — Replacement Cost ($)", min_value=0.0,
-            value=float(a.get("regionalmgr_replace_cost", 25_000)), step=1_000., format="%.0f",
-            key="rm_rc",
-            help="Often requires a third-party recruiter (15–20% of base salary) plus ramp time. Industry average: ~$25,000."
-        )
-
-    # ── Monthly Fixed Overhead ────────────────────────────────────────────────
-    with st.expander("Monthly Fixed Overhead"):
-        st.caption("Charged every month whether you have 5 inspectors or 500.")
-        a["software_monthly"]   = st.number_input(
-            "Software & Technology ($/mo)", min_value=0.0,
-            value=float(a["software_monthly"]), step=100., format="%.0f",
-            help="Scheduling, time-tracking, field management software, and reporting tools."
-        )
-        a["recruiting_monthly"] = st.number_input(
-            "Inspector Recruiting ($/mo)", min_value=0.0,
-            value=float(a["recruiting_monthly"]), step=100., format="%.0f",
-            help="Job boards, background checks, drug screening, and onboarding costs for inspectors. Management replacement costs are tracked separately in the Turnover section."
-        )
-        a["insurance_monthly"]  = st.number_input(
-            "Insurance ($/mo)", min_value=0.0,
-            value=float(a["insurance_monthly"]), step=100., format="%.0f",
-            help="General liability, errors & omissions, commercial auto, and any coverage not included in payroll burden."
-        )
-        a["travel_monthly"]     = st.number_input(
-            "Travel & Field Expenses ($/mo)", min_value=0.0,
-            value=float(a["travel_monthly"]), step=100., format="%.0f",
-            help="Mileage reimbursement, lodging, and per diem for management and supervisory travel. Inspector mileage is typically billed to clients separately."
-        )
-
-        ca_mode = st.radio(
-            "Corporate Overhead Allocation",
-            ["Fixed monthly amount", "Percentage of revenue"], horizontal=True,
-            index=0 if a["corp_alloc_mode"] == "fixed" else 1,
-            help="A charge from the parent company for shared services (accounting, HR, IT, etc.). Default $0 — enter only if OpSource charges this division."
-        )
-        a["corp_alloc_mode"] = "fixed" if ca_mode == "Fixed monthly amount" else "pct_revenue"
-        if a["corp_alloc_mode"] == "fixed":
-            a["corp_alloc_fixed"] = st.number_input(
-                "Corporate Allocation ($/mo)", min_value=0.0,
-                value=float(a["corp_alloc_fixed"]), step=500., format="%.0f",
-                help="Fixed monthly charge from the parent company. Default $0."
-            )
-        else:
-            _ca_pct_val = st.number_input(
-                "Corporate Allocation (% of revenue)", min_value=0.0, max_value=20.0,
-                value=float(a["corp_alloc_pct"]) * 100, step=0.5, format="%.1f",
-                help="Variable corporate charge as a percentage of gross revenue."
-            )
-            a["corp_alloc_pct"] = _ca_pct_val / 100.0
-
-        _total_fixed = (a["software_monthly"] + a["recruiting_monthly"] +
-                        a["insurance_monthly"] + a["travel_monthly"] +
-                        (a["corp_alloc_fixed"] if a["corp_alloc_mode"] == "fixed" else 0))
-        st.caption(f"Total fixed overhead: **${_total_fixed:,.0f}/month**")
-
-    # ── Tax Rates (provision only) ────────────────────────────────────────────
-    with st.expander("Tax Rates"):
-        st.caption(
-            "OpSource is a pass-through entity (S-corp or LLC) — income taxes are paid at the "
-            "owner level, not the division level. **Pre-tax net income is the correct metric for "
-            "evaluating this division's performance.** The tax provision below is shown for "
-            "reference only, to estimate the owner's approximate tax obligation on division profits. "
-            "Verify the applicable rate with your CPA."
-        )
-        _sc_pct = st.slider(
-            "SC State Tax Rate (%)", min_value=0, max_value=15,
-            value=int(round(float(a.get("sc_state_tax_rate", 0.059)) * 100 * 10) / 10),
-            step=1, format="%d%%",
-            help="South Carolina corporate/pass-through income tax rate. SC's rate has been reducing annually — 5.9% applies to 2026. Verify with your CPA."
-        )
-        a["sc_state_tax_rate"] = _sc_pct / 100.0
-        _fed_pct = st.slider(
-            "Federal Corporate Tax Rate (%)", min_value=0, max_value=40,
-            value=int(round(float(a.get("federal_tax_rate", 0.21)) * 100)),
-            step=1, format="%d%%",
-            help="Federal corporate income tax rate. Currently 21% for C-corps. If OpSource is an LLC or S-corp, use the applicable individual rate instead."
-        )
-        a["federal_tax_rate"] = _fed_pct / 100.0
-        _combined = a["sc_state_tax_rate"] + a["federal_tax_rate"]
-        st.caption(f"Combined rate: **{_combined:.1%}**  ·  On $100K net income: **${_combined * 100_000:,.0f} in taxes**")
-
-    st.session_state.assumptions = a
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# MAIN AREA — Header + KPIs
-# ════════════════════════════════════════════════════════════════════════════
-st.markdown("## Containment Division Calculator")
-st.caption("OpSource · Weekly cash flow model · 10-year (120-month) horizon")
-
-if is_stale():
-    st.markdown(
-        '<div class="stale-box">You have changed inputs since the last calculation. '
-        'Click <b>Calculate</b> in the sidebar to update results.</div>',
-        unsafe_allow_html=True
-    )
+        st.markdown('<div class="stale-box">Inputs changed — click <b>Calculate</b></div>', unsafe_allow_html=True)
+    elif st.session_state.run_ts:
+        st.caption(f"Last calculated: {st.session_state.run_ts}")
 
 if results_ready():
     _, mo_h, _ = st.session_state.results
@@ -676,9 +285,293 @@ if results_ready():
 # ════════════════════════════════════════════════════════════════════════════
 # TABS
 # ════════════════════════════════════════════════════════════════════════════
-tab_dash, tab_fin, tab_hc, tab_sum, tab_sens = st.tabs([
-    "Dashboard", "Financials", "Headcount Plan", "Scenario Summary", "Sensitivity"
+tab_setup, tab_dash, tab_fin, tab_hc, tab_sum, tab_sens = st.tabs([
+    "⚙  Setup", "Dashboard", "Financials", "Headcount Plan", "Scenario Summary", "Sensitivity"
 ])
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# SETUP — All inputs
+# ════════════════════════════════════════════════════════════════════════════
+with tab_setup:
+    a = st.session_state.assumptions
+    st.caption("Adjust any value below, then click **Calculate** above to update results.")
+
+    col_l, col_r = st.columns(2)
+
+    with col_l:
+        # ── Pricing ───────────────────────────────────────────────────────
+        section("Pricing")
+        a["st_bill_rate"] = st.slider(
+            "Bill Rate ($/hr, regular time)",
+            min_value=28.0, max_value=65.0, value=float(a["st_bill_rate"]),
+            step=0.50, format="$%.2f",
+            help="Hourly rate charged to the customer per inspector during regular work hours."
+        )
+        a["ot_hours"] = st.slider(
+            "Planned OT Hours / Inspector / Week",
+            min_value=0, max_value=25, value=int(a["ot_hours"]), step=1,
+            help="Average overtime hours per inspector per week. OT billed at 1.5× regular rate."
+        )
+        a["ot_bill_premium"] = st.number_input(
+            "OT Billing Multiplier", min_value=1.0, max_value=3.0,
+            value=float(a["ot_bill_premium"]), step=0.25, format="%.2f",
+            help=f"Overtime billed at this multiple of the regular rate."
+        )
+        a["st_hours"] = st.number_input(
+            "Regular Hours / Inspector / Week", min_value=20, max_value=60,
+            value=int(a["st_hours"]), step=1, format="%d",
+            help="Standard work hours per inspector per week (not counting OT). Typically 40."
+        )
+        a["lead_bill_premium"] = st.number_input(
+            "Team Lead Bill Rate Multiplier", min_value=1.0, max_value=2.0,
+            value=float(a.get("lead_bill_premium", 1.0)), step=0.05, format="%.2f",
+            help="Team leads billed at this multiple of the inspector rate. 1.0 = same rate."
+        )
+        _ot_bill = a["st_bill_rate"] * a["ot_bill_premium"]
+        _util    = float(a.get("inspector_utilization", 1.0))
+        _ob_wk   = float(a.get("inspector_onboarding_cost", 500)) / max(1, int(a.get("inspector_avg_tenure_weeks", 26)))
+        _wk_rev  = _util * (a["st_hours"] * a["st_bill_rate"] + a["ot_hours"] * _ot_bill)
+        _wk_cost = (a["st_hours"] * a["inspector_wage"] * (1 + a["burden"]) +
+                    a["ot_hours"] * a["inspector_wage"] * a["ot_pay_multiplier"] * (1 + a["burden"]) + _ob_wk)
+        _margin  = (_wk_rev - _wk_cost) / _wk_rev if _wk_rev else 0
+        st.caption(f"Per inspector/week: **${_wk_rev:,.0f} rev** · **${_wk_cost:,.0f} cost** · **{_margin:.0%} margin**")
+
+        st.divider()
+
+        # ── Inspector Pay ─────────────────────────────────────────────────
+        section("Inspector Pay")
+        a["inspector_wage"] = st.number_input(
+            "Hourly Wage ($/hr)", min_value=10.0, max_value=50.0,
+            value=float(a["inspector_wage"]), step=0.25, format="%.2f",
+            help="Base hourly pay before employer taxes and benefits."
+        )
+        _burden_pct = st.slider(
+            "Payroll Burden (%)", min_value=15, max_value=55,
+            value=int(round(a["burden"] * 100)), step=1, format="%d%%",
+            help="Employer cost on top of wages: FICA, unemployment, workers' comp, benefits. ~30% typical."
+        )
+        a["burden"] = _burden_pct / 100.0
+        a["ot_pay_multiplier"] = st.number_input(
+            "OT Pay Multiplier", min_value=1.0, max_value=3.0,
+            value=float(a["ot_pay_multiplier"]), step=0.25, format="%.2f",
+            help="Inspectors earn this multiple of base pay for overtime."
+        )
+        _util_pct = st.slider(
+            "Inspector Utilization Rate (%)", min_value=50, max_value=100,
+            value=int(round(float(a.get("inspector_utilization", 1.0)) * 100)), step=1, format="%d%%",
+            help="Fraction of scheduled hours actually billed to client. Travel is billable; training is not."
+        )
+        a["inspector_utilization"] = _util_pct / 100.0
+        a["inspector_onboarding_cost"] = st.number_input(
+            "Onboarding Cost per Hire ($)", min_value=0.0,
+            value=float(a.get("inspector_onboarding_cost", 500.0)), step=50., format="%.0f",
+            help="One-time cost per new inspector: background check, drug screen, PPE, orientation."
+        )
+        a["inspector_avg_tenure_weeks"] = st.number_input(
+            "Average Inspector Tenure (weeks)", min_value=4, max_value=260,
+            value=int(a.get("inspector_avg_tenure_weeks", 26)), step=4, format="%d",
+            help="How long the average inspector stays. 26 weeks (~6 months) is typical for containment."
+        )
+        _ob_per_wk = a["inspector_onboarding_cost"] / max(1, a["inspector_avg_tenure_weeks"])
+        st.caption(f"Onboarding adds **${_ob_per_wk:.2f}/inspector/week** to labor cost")
+
+        st.divider()
+
+        # ── Team Leads ────────────────────────────────────────────────────
+        section("Team Leads")
+        st.caption("Hourly supervisors billed to the client alongside inspectors.")
+        a["team_lead_ratio"] = st.slider(
+            "Inspectors per Team Lead",
+            min_value=5, max_value=25, value=int(a["team_lead_ratio"]), step=1,
+            help="One team lead per N inspectors (rounded up)."
+        )
+        a["lead_wage"] = st.number_input(
+            "Team Lead Hourly Wage ($/hr)", min_value=10.0, max_value=60.0,
+            value=float(a["lead_wage"]), step=0.25, format="%.2f",
+            help="Base hourly pay for team leads before burden."
+        )
+        a["lead_ot_hours"] = st.number_input(
+            "Team Lead OT Hours / Week", min_value=0, max_value=25,
+            value=int(a["lead_ot_hours"]), step=1, format="%d"
+        )
+        a["lead_st_hours"] = st.number_input(
+            "Team Lead Regular Hours / Week", min_value=20, max_value=60,
+            value=int(a["lead_st_hours"]), step=1, format="%d"
+        )
+
+    with col_r:
+        # ── Customer Payment Terms ─────────────────────────────────────────
+        section("Customer Payment Terms")
+        _billing_options = ["Monthly (standard)", "Weekly (faster cash flow)"]
+        _billing_idx = 0 if a.get("billing_frequency", "monthly") == "monthly" else 1
+        _billing_sel = st.radio(
+            "Invoice Frequency", _billing_options, index=_billing_idx, horizontal=True,
+            help="Weekly billing reduces peak credit line need by $200–400K at 60 headcount."
+        )
+        a["billing_frequency"] = "monthly" if _billing_sel == "Monthly (standard)" else "weekly"
+        a["net_days"] = st.slider(
+            "Days to Payment After Invoice",
+            min_value=15, max_value=180, value=int(a["net_days"]), step=5,
+            help="How long until customers pay after you send the invoice. Net 60 is standard in containment."
+        )
+        a["start_date"] = st.date_input(
+            "Model Start Date", value=a["start_date"],
+            help="First day of the model. All months and years calculate forward from here."
+        )
+
+        st.divider()
+
+        # ── Credit Line ────────────────────────────────────────────────────
+        section("Credit Line")
+        st.caption("Funds payroll while waiting for customers to pay.")
+        a["max_loc"] = st.number_input(
+            "Maximum Credit Line ($)", min_value=0.0,
+            value=float(a["max_loc"]), step=50_000., format="%.0f",
+            help="Your bank's credit limit. The model warns when cash needs exceed this."
+        )
+        _apr_pct = st.slider(
+            "Annual Interest Rate (%)", min_value=4.0, max_value=20.0,
+            value=round(float(a["apr"]) * 100, 2), step=0.25, format="%.2f%%",
+            help="APR on the outstanding credit line balance."
+        )
+        a["apr"] = _apr_pct / 100.0
+        a["initial_cash"] = st.number_input(
+            "Starting Cash ($)", min_value=0.0,
+            value=float(a["initial_cash"]), step=5_000., format="%.0f"
+        )
+        a["cash_buffer"] = st.number_input(
+            "Minimum Cash Reserve ($)", min_value=0.0,
+            value=float(a["cash_buffer"]), step=5_000., format="%.0f",
+            help="Model keeps at least this much cash on hand, drawing credit line when needed."
+        )
+        a["auto_paydown"] = st.checkbox(
+            "Auto-repay credit line when cash exceeds reserve",
+            value=bool(a["auto_paydown"])
+        )
+        _mo_int = (a["apr"] / 12) * a["max_loc"]
+        st.caption(f"Interest at full draw: **${_mo_int:,.0f}/month**")
+
+        st.divider()
+
+        # ── Salaried Management ────────────────────────────────────────────
+        with st.expander("Salaried Management", expanded=False):
+            st.caption("Roles added automatically as inspector count grows. Salary persists during project gaps.")
+            a["gm_loaded_annual"] = st.number_input(
+                "General Manager — Total Annual Cost ($)", min_value=0.0,
+                value=float(a["gm_loaded_annual"]), step=1_000., format="%.0f",
+                help="Fully loaded GM cost (salary + bonus + benefits). Active from Month 1."
+            )
+            st.markdown("**Operations Coordinator**")
+            c1, c2 = st.columns(2)
+            a["opscoord_base"] = c1.number_input(
+                "Base Salary ($)", min_value=0.0, value=float(a["opscoord_base"]),
+                step=1_000., format="%.0f", key="oc_sal"
+            )
+            a["opscoord_span"] = c2.number_input(
+                "Per N inspectors", min_value=10, value=int(a["opscoord_span"]),
+                step=5, format="%d", key="oc_sp"
+            )
+            st.markdown("**Field Supervisor**")
+            c1, c2 = st.columns(2)
+            a["fieldsup_base"] = c1.number_input(
+                "Base Salary ($)", min_value=0.0, value=float(a["fieldsup_base"]),
+                step=1_000., format="%.0f", key="fs_sal"
+            )
+            a["fieldsup_span"] = c2.number_input(
+                "Per N inspectors", min_value=5, value=int(a["fieldsup_span"]),
+                step=5, format="%d", key="fs_sp",
+                help="1 per 25 inspectors (each supervisor oversees one crew)."
+            )
+            st.markdown("**Regional Manager**")
+            c1, c2 = st.columns(2)
+            a["regionalmgr_base"] = c1.number_input(
+                "Base Salary ($)", min_value=0.0, value=float(a["regionalmgr_base"]),
+                step=1_000., format="%.0f", key="rm_sal"
+            )
+            a["regionalmgr_span"] = c2.number_input(
+                "Per N inspectors", min_value=50, value=int(a["regionalmgr_span"]),
+                step=10, format="%d", key="rm_sp"
+            )
+            _mgmt_burden_pct = st.slider(
+                "Management Burden Rate (%)", min_value=10, max_value=40,
+                value=int(round(a["mgmt_burden"] * 100)), step=1, format="%d%%"
+            )
+            a["mgmt_burden"] = _mgmt_burden_pct / 100.0
+            def _loaded(base): return base * (1 + a["mgmt_burden"])
+            st.caption(
+                f"Fully loaded: OC **${_loaded(a['opscoord_base']):,.0f}** · "
+                f"FS **${_loaded(a['fieldsup_base']):,.0f}** · "
+                f"RM **${_loaded(a['regionalmgr_base']):,.0f}**"
+            )
+
+        # ── Management Turnover ────────────────────────────────────────────
+        with st.expander("Management Turnover & Replacement Cost", expanded=False):
+            st.caption("Ongoing cost of replacing management roles — recruiting, screening, ramp-up productivity loss.")
+            _oc_to_pct = st.slider("Ops Coordinator — Annual Turnover (%)", min_value=10, max_value=70,
+                value=int(round(a.get("opscoord_turnover", 0.35) * 100)), step=1, format="%d%%")
+            a["opscoord_turnover"] = _oc_to_pct / 100.0
+            a["opscoord_replace_cost"] = st.number_input(
+                "Ops Coordinator — Replacement Cost ($)", min_value=0.0,
+                value=float(a.get("opscoord_replace_cost", 8_000)), step=500., format="%.0f", key="oc_rc")
+            _fs_to_pct = st.slider("Field Supervisor — Annual Turnover (%)", min_value=10, max_value=60,
+                value=int(round(a.get("fieldsup_turnover", 0.25) * 100)), step=1, format="%d%%")
+            a["fieldsup_turnover"] = _fs_to_pct / 100.0
+            a["fieldsup_replace_cost"] = st.number_input(
+                "Field Supervisor — Replacement Cost ($)", min_value=0.0,
+                value=float(a.get("fieldsup_replace_cost", 12_000)), step=500., format="%.0f", key="fs_rc")
+            _rm_to_pct = st.slider("Regional Manager — Annual Turnover (%)", min_value=5, max_value=40,
+                value=int(round(a.get("regionalmgr_turnover", 0.18) * 100)), step=1, format="%d%%")
+            a["regionalmgr_turnover"] = _rm_to_pct / 100.0
+            a["regionalmgr_replace_cost"] = st.number_input(
+                "Regional Manager — Replacement Cost ($)", min_value=0.0,
+                value=float(a.get("regionalmgr_replace_cost", 25_000)), step=1_000., format="%.0f", key="rm_rc")
+
+        # ── Monthly Fixed Overhead ─────────────────────────────────────────
+        with st.expander("Monthly Fixed Overhead", expanded=False):
+            st.caption("Charged every month regardless of headcount.")
+            a["software_monthly"]   = st.number_input("Software & Technology ($/mo)", min_value=0.0,
+                value=float(a["software_monthly"]), step=100., format="%.0f")
+            a["recruiting_monthly"] = st.number_input("Inspector Recruiting ($/mo)", min_value=0.0,
+                value=float(a["recruiting_monthly"]), step=100., format="%.0f")
+            a["insurance_monthly"]  = st.number_input("Insurance ($/mo)", min_value=0.0,
+                value=float(a["insurance_monthly"]), step=100., format="%.0f")
+            a["travel_monthly"]     = st.number_input("Travel & Field Expenses ($/mo)", min_value=0.0,
+                value=float(a["travel_monthly"]), step=100., format="%.0f")
+            ca_mode = st.radio("Corporate Overhead Allocation",
+                ["Fixed monthly amount", "Percentage of revenue"], horizontal=True,
+                index=0 if a["corp_alloc_mode"] == "fixed" else 1)
+            a["corp_alloc_mode"] = "fixed" if ca_mode == "Fixed monthly amount" else "pct_revenue"
+            if a["corp_alloc_mode"] == "fixed":
+                a["corp_alloc_fixed"] = st.number_input("Corporate Allocation ($/mo)", min_value=0.0,
+                    value=float(a["corp_alloc_fixed"]), step=500., format="%.0f")
+            else:
+                _ca_pct_val = st.number_input("Corporate Allocation (% of revenue)", min_value=0.0,
+                    max_value=20.0, value=float(a["corp_alloc_pct"]) * 100, step=0.5, format="%.1f")
+                a["corp_alloc_pct"] = _ca_pct_val / 100.0
+            _total_fixed = (a["software_monthly"] + a["recruiting_monthly"] +
+                            a["insurance_monthly"] + a["travel_monthly"] +
+                            (a["corp_alloc_fixed"] if a["corp_alloc_mode"] == "fixed" else 0))
+            st.caption(f"Total fixed overhead: **${_total_fixed:,.0f}/month**")
+
+        # ── Tax Rates ──────────────────────────────────────────────────────
+        with st.expander("Tax Rates (reference only)", expanded=False):
+            st.caption(
+                "OpSource is a pass-through entity (S-corp or LLC) — taxes are paid at the owner level. "
+                "**Pre-tax net income is the correct metric for evaluating this division.** "
+                "Tax provision shown below is an estimate of the owner's personal obligation."
+            )
+            _sc_pct = st.slider("SC State Tax Rate (%)", min_value=0, max_value=15,
+                value=int(round(float(a.get("sc_state_tax_rate", 0.059)) * 100 * 10) / 10),
+                step=1, format="%d%%")
+            a["sc_state_tax_rate"] = _sc_pct / 100.0
+            _fed_pct = st.slider("Federal Tax Rate (%)", min_value=0, max_value=40,
+                value=int(round(float(a.get("federal_tax_rate", 0.21)) * 100)), step=1, format="%d%%")
+            a["federal_tax_rate"] = _fed_pct / 100.0
+            _combined = a["sc_state_tax_rate"] + a["federal_tax_rate"]
+            st.caption(f"Combined rate: **{_combined:.1%}**  ·  On $100K income: **${_combined * 100_000:,.0f} in taxes**")
+
+    st.session_state.assumptions = a
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -686,7 +579,7 @@ tab_dash, tab_fin, tab_hc, tab_sum, tab_sens = st.tabs([
 # ════════════════════════════════════════════════════════════════════════════
 with tab_dash:
     if not results_ready():
-        st.markdown('<div class="info-box">Click <b>Calculate</b> in the sidebar to generate results.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="info-box">Click <b>Calculate</b> above to generate results.</div>', unsafe_allow_html=True)
         st.stop()
 
     weekly_df, mo_full, qdf_full = st.session_state.results
@@ -870,7 +763,7 @@ with tab_dash:
 # ════════════════════════════════════════════════════════════════════════════
 with tab_fin:
     if not results_ready():
-        st.markdown('<div class="info-box">Click <b>Calculate</b> in the sidebar to generate results.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="info-box">Click <b>Calculate</b> above to generate results.</div>', unsafe_allow_html=True)
         st.stop()
 
     weekly_df, mo_full, qdf_full = st.session_state.results
@@ -891,23 +784,38 @@ with tab_fin:
                  "hourly_labor","salaried_cost","overhead","total_labor",
                  "ebitda","ebitda_margin","interest","ebitda_after_interest","ebitda_ai_margin",
                  "collections","ar_end","loc_end","cash_end"]
-        _fmt_table(_select(mo, dcols),
-            dollar_cols=["revenue","hourly_labor","salaried_cost","overhead","total_labor",
-                         "ebitda","interest","ebitda_after_interest","collections","ar_end","loc_end","cash_end"],
-            pct_cols=["ebitda_margin","ebitda_ai_margin"],
-            highlight_neg="ebitda_after_interest",
-            highlight_loc="loc_end", max_loc_val=float(a["max_loc"]))
+        _col_rename = {
+            "period":"Period","inspectors_avg":"Inspectors","team_leads_avg":"Team Leads",
+            "revenue":"Revenue","hourly_labor":"Hourly Labor","salaried_cost":"Salaried Mgmt",
+            "overhead":"Overhead","total_labor":"Total Labor","ebitda":"Oper. Profit",
+            "ebitda_margin":"Oper. %","interest":"Interest","ebitda_after_interest":"Net Income",
+            "ebitda_ai_margin":"Net %","collections":"Collections","ar_end":"AR Balance",
+            "loc_end":"Credit Line","cash_end":"Cash",
+        }
+        _fmt_table(_select(mo, dcols).rename(columns=_col_rename),
+            dollar_cols=["Revenue","Hourly Labor","Salaried Mgmt","Overhead","Total Labor",
+                         "Oper. Profit","Interest","Net Income","Collections","AR Balance","Credit Line","Cash"],
+            pct_cols=["Oper. %","Net %"],
+            highlight_neg="Net Income",
+            highlight_loc="Credit Line", max_loc_val=float(a["max_loc"]))
 
     with f2:
         qcols = ["yr_q","revenue","hourly_labor","salaried_cost","overhead","total_labor",
                  "ebitda","ebitda_margin","interest","ebitda_after_interest","ebitda_ai_margin",
                  "ar_end","loc_end","cash_end"]
-        _fmt_table(_select(qdf, qcols),
-            dollar_cols=["revenue","hourly_labor","salaried_cost","overhead","total_labor",
-                         "ebitda","interest","ebitda_after_interest","ar_end","loc_end","cash_end"],
-            pct_cols=["ebitda_margin","ebitda_ai_margin"],
-            highlight_neg="ebitda_after_interest",
-            highlight_loc="loc_end", max_loc_val=float(a["max_loc"]))
+        _qcol_rename = {
+            "yr_q":"Quarter","revenue":"Revenue","hourly_labor":"Hourly Labor",
+            "salaried_cost":"Salaried Mgmt","overhead":"Overhead","total_labor":"Total Labor",
+            "ebitda":"Oper. Profit","ebitda_margin":"Oper. %","interest":"Interest",
+            "ebitda_after_interest":"Net Income","ebitda_ai_margin":"Net %",
+            "ar_end":"AR Balance","loc_end":"Credit Line","cash_end":"Cash",
+        }
+        _fmt_table(_select(qdf, qcols).rename(columns=_qcol_rename),
+            dollar_cols=["Revenue","Hourly Labor","Salaried Mgmt","Overhead","Total Labor",
+                         "Oper. Profit","Interest","Net Income","AR Balance","Credit Line","Cash"],
+            pct_cols=["Oper. %","Net %"],
+            highlight_neg="Net Income",
+            highlight_loc="Credit Line", max_loc_val=float(a["max_loc"]))
 
     with f3:
         w_neg = int(wdf["warn_neg_ebitda"].sum()) if "warn_neg_ebitda" in wdf.columns else 0
@@ -917,25 +825,47 @@ with tab_fin:
         with wt1:
             _fmt_table(_select(wdf, ["week_start","week_end","inspectors","team_leads",
                 "n_opscoord","n_fieldsup","n_regionalmgr","insp_st_hrs","insp_ot_hrs",
-                "insp_rev_st","insp_rev_ot","lead_rev_st","lead_rev_ot","revenue_wk"]),
-                dollar_cols=["insp_rev_st","insp_rev_ot","lead_rev_st","lead_rev_ot","revenue_wk"])
+                "insp_rev_st","insp_rev_ot","lead_rev_st","lead_rev_ot","revenue_wk"]).rename(columns={
+                "week_start":"Week Start","week_end":"Week End","inspectors":"Inspectors",
+                "team_leads":"Team Leads","n_opscoord":"Ops Coord","n_fieldsup":"Field Sup",
+                "n_regionalmgr":"Reg. Mgr","insp_st_hrs":"Insp ST Hrs","insp_ot_hrs":"Insp OT Hrs",
+                "insp_rev_st":"Insp Rev ST","insp_rev_ot":"Insp Rev OT",
+                "lead_rev_st":"Lead Rev ST","lead_rev_ot":"Lead Rev OT","revenue_wk":"Revenue",
+            }),
+                dollar_cols=["Insp Rev ST","Insp Rev OT","Lead Rev ST","Lead Rev OT","Revenue"])
         with wt2:
             _fmt_table(_select(wdf, ["week_start","inspectors","team_leads",
                 "insp_labor_st","insp_labor_ot","lead_labor_st","lead_labor_ot",
-                "hourly_labor","salaried_wk","overhead_wk","revenue_wk","ebitda_wk"]),
-                dollar_cols=["insp_labor_st","insp_labor_ot","lead_labor_st","lead_labor_ot",
-                             "hourly_labor","salaried_wk","overhead_wk","revenue_wk","ebitda_wk"])
+                "hourly_labor","salaried_wk","overhead_wk","revenue_wk","ebitda_wk"]).rename(columns={
+                "week_start":"Week Start","inspectors":"Inspectors","team_leads":"Team Leads",
+                "insp_labor_st":"Insp Labor ST","insp_labor_ot":"Insp Labor OT",
+                "lead_labor_st":"Lead Labor ST","lead_labor_ot":"Lead Labor OT",
+                "hourly_labor":"Hourly Labor","salaried_wk":"Salaried Mgmt",
+                "overhead_wk":"Overhead","revenue_wk":"Revenue","ebitda_wk":"Oper. Profit",
+            }),
+                dollar_cols=["Insp Labor ST","Insp Labor OT","Lead Labor ST","Lead Labor OT",
+                             "Hourly Labor","Salaried Mgmt","Overhead","Revenue","Oper. Profit"])
         with wt3:
             _fmt_table(_select(wdf, ["week_start","week_end","is_month_end",
-                "revenue_wk","statement_amt","collections","ar_begin","ar_end"]),
-                dollar_cols=["revenue_wk","statement_amt","collections","ar_begin","ar_end"])
+                "revenue_wk","statement_amt","collections","ar_begin","ar_end"]).rename(columns={
+                "week_start":"Week Start","week_end":"Week End","is_month_end":"Month End?",
+                "revenue_wk":"Revenue","statement_amt":"Invoice Amt",
+                "collections":"Collections","ar_begin":"AR Open","ar_end":"AR Close",
+            }),
+                dollar_cols=["Revenue","Invoice Amt","Collections","AR Open","AR Close"])
         with wt4:
             _fmt_table(_select(wdf, ["week_start","payroll_cash_out","salaried_wk",
                 "overhead_wk","interest_paid","collections",
-                "cash_begin","loc_draw","loc_repay","cash_end","loc_begin","loc_end"]),
-                dollar_cols=["payroll_cash_out","salaried_wk","overhead_wk","interest_paid",
-                             "collections","cash_begin","loc_draw","loc_repay",
-                             "cash_end","loc_begin","loc_end"])
+                "cash_begin","loc_draw","loc_repay","cash_end","loc_begin","loc_end"]).rename(columns={
+                "week_start":"Week Start","payroll_cash_out":"Hourly Payroll",
+                "salaried_wk":"Salaried Mgmt","overhead_wk":"Overhead",
+                "interest_paid":"Interest Paid","collections":"Collections",
+                "cash_begin":"Cash Open","loc_draw":"LOC Draw","loc_repay":"LOC Repay",
+                "cash_end":"Cash Close","loc_begin":"LOC Open","loc_end":"LOC Close",
+            }),
+                dollar_cols=["Hourly Payroll","Salaried Mgmt","Overhead","Interest Paid",
+                             "Collections","Cash Open","LOC Draw","LOC Repay",
+                             "Cash Close","LOC Open","LOC Close"])
             if all(c in wdf.columns for c in ["check_ar","check_loc","check_cash"]):
                 max_err = wdf[["check_ar","check_loc","check_cash"]].max().max()
                 if max_err < 0.01:
@@ -994,7 +924,7 @@ with tab_hc:
 # ════════════════════════════════════════════════════════════════════════════
 with tab_sum:
     if not results_ready():
-        st.markdown('<div class="info-box">Click <b>Calculate</b> in the sidebar to generate results.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="info-box">Click <b>Calculate</b> above to generate results.</div>', unsafe_allow_html=True)
         st.stop()
 
     weekly_df, mo_full, _ = st.session_state.results
@@ -1198,7 +1128,7 @@ with tab_sum:
 # ════════════════════════════════════════════════════════════════════════════
 with tab_sens:
     if not results_ready():
-        st.markdown('<div class="info-box">Click <b>Calculate</b> in the sidebar first.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="info-box">Click <b>Calculate</b> above first.</div>', unsafe_allow_html=True)
         st.stop()
 
     weekly_df, mo_full, qdf_full = st.session_state.results
