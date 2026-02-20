@@ -429,10 +429,18 @@ with tab_setup:
             min_value=0, max_value=25, value=int(a["ot_hours"]), step=1,
             help="Average overtime hours per inspector per week. OT billed at 1.5× regular rate."
         )
+        _ot_mode_options = ["Pass-through (cost+ recommended)", "Markup (1.5× bill rate)"]
+        _ot_mode_idx = 0 if a.get("ot_bill_mode", "passthrough") == "passthrough" else 1
+        _ot_mode_sel = st.radio(
+            "OT Billing Method", _ot_mode_options, index=_ot_mode_idx, horizontal=True,
+            help="Pass-through: OT bill = ST bill + (wage × 0.5 × burden). Markup: OT bill = ST bill × 1.5×. "
+                 "Pass-through is how most containment contracts work. Markup overstates OT revenue by ~$6-7/hr."
+        )
+        a["ot_bill_mode"] = "passthrough" if "Pass-through" in _ot_mode_sel else "markup"
         a["ot_bill_premium"] = st.number_input(
             "OT Billing Multiplier", min_value=1.0, max_value=3.0,
             value=float(a["ot_bill_premium"]), step=0.25, format="%.2f",
-            help=f"Overtime billed at this multiple of the regular rate."
+            help="Overtime billed at this multiple of the regular rate. (Only used in Markup mode)"
         )
         a["st_hours"] = st.number_input(
             "Regular Hours / Inspector / Week", min_value=20, max_value=60,
@@ -444,7 +452,10 @@ with tab_setup:
             value=float(a.get("lead_bill_premium", 1.0)), step=0.05, format="%.2f",
             help="Team leads billed at this multiple of the inspector rate. 1.0 = same rate."
         )
-        _ot_bill = a["st_bill_rate"] * a["ot_bill_premium"]
+        if a.get("ot_bill_mode", "passthrough") == "passthrough":
+            _ot_bill = a["st_bill_rate"] + (a["inspector_wage"] * (a.get("ot_pay_multiplier", 1.5) - 1.0) * (1.0 + a["burden"]))
+        else:
+            _ot_bill = a["st_bill_rate"] * a["ot_bill_premium"]
         _util    = float(a.get("inspector_utilization", 1.0))
         _ob_wk   = float(a.get("inspector_onboarding_cost", 500)) / max(1, int(a.get("inspector_avg_tenure_weeks", 26)))
         _wk_rev  = _util * (a["st_hours"] * a["st_bill_rate"] + a["ot_hours"] * _ot_bill)
@@ -492,6 +503,24 @@ with tab_setup:
         _ob_per_wk = a["inspector_onboarding_cost"] / max(1, a["inspector_avg_tenure_weeks"])
         st.caption(f"Onboarding adds **${_ob_per_wk:.2f}/inspector/week** to labor cost")
 
+        _bd_pct = st.slider(
+            "Bad Debt / Write-Off Rate (%)", min_value=0, max_value=5,
+            value=max(0, int(round(float(a.get("bad_debt_pct", 0.01)) * 100))), step=1, format="%d%%",
+            help="% of billed revenue never collected — disputed hours, customer short-pays. "
+                 "0.5–2% is standard for B2B industrial staffing."
+        )
+        a["bad_debt_pct"] = _bd_pct / 100.0
+
+        _insp_to_pct = st.slider(
+            "Inspector Annual Turnover Rate (%)", min_value=50, max_value=200,
+            value=int(round(float(a.get("inspector_turnover_rate", 1.0)) * 100)), step=10, format="%d%%",
+            help="Annual churn rate for hourly inspectors. Containment industry: 80–150%. "
+                 "Higher turnover = more onboarding cost per week."
+        )
+        a["inspector_turnover_rate"] = _insp_to_pct / 100.0
+        _weekly_hires_est = 25 * (a["inspector_turnover_rate"] / 52)  # rough estimate at 25 inspectors
+        st.caption(f"At 25 inspectors: ~**{_weekly_hires_est:.1f} new hires/week** · **${_weekly_hires_est * a.get('inspector_onboarding_cost', 500):,.0f}/week** onboarding cost")
+
         st.divider()
 
         # ── Team Leads ────────────────────────────────────────────────────
@@ -515,6 +544,21 @@ with tab_setup:
             "Team Lead Regular Hours / Week", min_value=20, max_value=60,
             value=int(a["lead_st_hours"]), step=1, format="%d"
         )
+
+        # Compute team lead margin vs inspector margin
+        _tl_bill_st = a["st_bill_rate"] * float(a.get("lead_bill_premium", 1.0))
+        _tl_cost_st = a["lead_wage"] * (1.0 + a["burden"])
+        _insp_cost_st = a["inspector_wage"] * (1.0 + a["burden"])
+        _tl_margin = (_tl_bill_st - _tl_cost_st) / _tl_bill_st if _tl_bill_st > 0 else 0
+        _insp_margin = (a["st_bill_rate"] - _insp_cost_st) / a["st_bill_rate"] if a["st_bill_rate"] > 0 else 0
+        if float(a.get("lead_bill_premium", 1.0)) < 1.15 and a["lead_wage"] > a["inspector_wage"]:
+            st.warning(
+                f"⚠️ **Team leads are margin-dilutive at current settings.** "
+                f"Inspector margin: **{_insp_margin:.0%}** — Team lead margin: **{_tl_margin:.0%}**. "
+                f"Team leads are paid ${a['lead_wage']:.0f}/hr vs inspectors at ${a['inspector_wage']:.0f}/hr "
+                f"but billed at only {a.get('lead_bill_premium', 1.0):.2f}× the inspector rate. "
+                f"Consider setting Team Lead Bill Rate Multiplier > 1.10 or reducing lead wage."
+            )
 
     with col_r:
         # ── Customer Payment Terms ─────────────────────────────────────────
@@ -565,6 +609,20 @@ with tab_setup:
             "Auto-repay credit line when cash exceeds reserve",
             value=bool(a["auto_paydown"])
         )
+        a["use_borrowing_base"] = st.checkbox(
+            "Enable AR-based borrowing base (ABL facility)",
+            value=bool(a.get("use_borrowing_base", False)),
+            help="Limits credit draws to advance_rate × eligible AR balance. Matches how asset-based "
+                 "lending facilities (ABL) actually work. Disabling this uses a fixed credit ceiling only."
+        )
+        if a["use_borrowing_base"]:
+            _adv_pct = st.slider(
+                "Advance Rate on AR (%)", min_value=70, max_value=92,
+                value=int(round(float(a.get("ar_advance_rate", 0.85)) * 100)), step=1, format="%d%%",
+                help="Lender advances this % of eligible AR (<90 days). Standard: 80–85% for staffing ABL."
+            )
+            a["ar_advance_rate"] = _adv_pct / 100.0
+            st.caption(f"Borrowing base ≈ **{a['ar_advance_rate']:.0%} × AR balance** (capped at credit limit)")
         _mo_int = (a["apr"] / 12) * a["max_loc"]
         st.caption(f"Interest at full draw: **${_mo_int:,.0f}/month**")
 
@@ -614,6 +672,12 @@ with tab_setup:
                 value=int(round(a["mgmt_burden"] * 100)), step=1, format="%d%%"
             )
             a["mgmt_burden"] = _mgmt_burden_pct / 100.0
+            a["mgmt_winddown_weeks"] = st.number_input(
+                "Management Wind-Down Lag (weeks)", min_value=0, max_value=26,
+                value=int(a.get("mgmt_winddown_weeks", 8)), step=1, format="%d",
+                help="After inspectors drop to zero, salaried management stays on payroll for this many weeks "
+                     "before headcount reduces. Models realistic severance and project-gap retention."
+            )
             def _loaded(base): return base * (1 + a["mgmt_burden"])
             st.caption(
                 f"Fully loaded: OC **${_loaded(a['opscoord_base']):,.0f}** · "
@@ -810,6 +874,49 @@ with tab_dash:
 
     if _self_fund:
         st.caption(f"Credit line fully repaid (division self-funding): **{_self_fund}**  ·  EBITDA/Interest coverage: **{_int_coverage:.1f}x**")
+
+    st.divider()
+    section("Working Capital & Credit Metrics — Selected Range")
+    wc1, wc2, wc3, wc4, wc5 = st.columns(5)
+
+    # DSO from filtered range
+    _avg_dso = float(mo["dso"].mean()) if "dso" in mo.columns else 0
+    _max_dso = float(mo["dso"].max()) if "dso" in mo.columns else 0
+
+    # LOC utilization
+    _avg_loc_util = float(mo["loc_utilization"].mean()) if "loc_utilization" in mo.columns else 0
+    _peak_loc_util = float(mo["loc_utilization"].max()) if "loc_utilization" in mo.columns else 0
+
+    # Days cash on hand (cash / daily burn)
+    _avg_cash = float(mo["cash_end"].mean()) if len(mo) else 0
+    _avg_monthly_out = float((mo["hourly_labor"] + mo["salaried_cost"] + mo["overhead"] + mo["interest"]).mean()) if len(mo) else 1
+    _days_cash = (_avg_cash / (_avg_monthly_out / 30)) if _avg_monthly_out > 0 else 0
+
+    # FCCR
+    _avg_fccr = float(mo[mo["fccr"] < 99]["fccr"].mean()) if "fccr" in mo.columns and len(mo[mo["fccr"] < 99]) else 0
+    _min_fccr = float(mo[mo["fccr"] < 99]["fccr"].min()) if "fccr" in mo.columns and len(mo[mo["fccr"] < 99]) else 0
+
+    # Borrowing base headroom (if enabled)
+    _use_bb = bool(a.get("use_borrowing_base", False))
+    _loc_headroom_avg = float(mo_full["loc_headroom"].mean()) if "loc_headroom" in mo_full.columns else None
+
+    kpi(wc1, "Avg DSO",           f"{_avg_dso:.0f} days",        f"max {_max_dso:.0f} days in range")
+    kpi(wc2, "Peak LOC Util.",    f"{_peak_loc_util:.0%}",        "of credit facility used")
+    kpi(wc3, "Days Cash on Hand", f"{_days_cash:.0f} days",       "avg cash ÷ daily burn")
+    kpi(wc4, "Avg FCCR",          f"{_avg_fccr:.1f}x",           f"min {_min_fccr:.1f}x (1.1x = lender threshold)")
+    if _use_bb and _loc_headroom_avg is not None:
+        kpi(wc5, "Avg BB Headroom", fmt_dollar(_loc_headroom_avg), "available credit above LOC balance")
+    else:
+        _bad_debt_annual = float(mo["revenue"].sum()) * float(a.get("bad_debt_pct", 0.01)) / max(1, len(mo)) * 12
+        kpi(wc5, "Annual Bad Debt Est.", fmt_dollar(_bad_debt_annual), f"{a.get('bad_debt_pct', 0.01):.1%} of revenue")
+
+    # Covenant warning
+    if _min_fccr > 0 and _min_fccr < 1.1:
+        st.warning(f"⚠️ **FCCR drops to {_min_fccr:.2f}x** in the selected range — below the typical lender covenant of 1.10x. "
+                   "This would likely trigger a covenant breach. Consider reducing overhead or improving billing rates.")
+    elif _peak_loc_util > 0.85:
+        st.warning(f"⚠️ **Credit line peaks at {_peak_loc_util:.0%} utilization** — limited headroom for delays. "
+                   "Most lenders become uncomfortable above 80% utilization.")
 
     st.divider()
 
@@ -1566,7 +1673,7 @@ with tab_sens:
         )
         return fig
 
-    s1, s2, s3, s4 = st.tabs(["Payment Terms","Bill Rate","Payroll Burden","Overtime"])
+    s1, s2, s3, s4, s5, s6 = st.tabs(["Payment Terms","Bill Rate","Payroll Burden","Overtime","Utilization & Wages","Bad Debt & Turnover"])
 
     with s1:
         section("How payment terms drive your credit line and returns")
@@ -1700,6 +1807,103 @@ with tab_sens:
             "value":"OT Hrs/wk","ebitda_margin":"Oper. Margin","ebitda_ai_margin":"Net Margin",
             "total_revenue":"Total Revenue","ebitda_ai":"Net Income"}),
             dollar_cols=["Total Revenue","Net Income"], pct_cols=["Oper. Margin","Net Margin"])
+
+    with s5:
+        section("How utilization and wage rates affect margin and credit need")
+        st.caption("Utilization = % of scheduled hours actually billed. Wage inflation = inspector base pay increase.")
+
+        sa, sb = st.columns(2)
+        with sa:
+            section("Inspector Utilization Rate")
+            util_vals = [0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.00]
+            with st.spinner("Running sensitivity…"):
+                util_df = run_sensitivity(a, hc, "inspector_utilization", util_vals)
+            util_df["pct"] = (util_df["value"] * 100).round(0).astype(int)
+
+            fig_u = go.Figure()
+            fig_u.add_trace(go.Scatter(x=util_df["pct"], y=util_df["ebitda_ai_margin"],
+                mode="lines+markers", name="Net Margin", line=dict(color=PC[1], width=2), marker=dict(size=7)))
+            fig_u.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
+            fig_u.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10),
+                title="Net Margin vs. Utilization Rate", xaxis_title="Utilization (%)",
+                yaxis=dict(tickformat=".1%"))
+            st.plotly_chart(fig_u, use_container_width=True)
+
+            _fmt_table(util_df[["pct","ebitda_ai_margin","ebitda_ai","peak_loc"]].rename(columns={
+                "pct":"Utilization (%)","ebitda_ai_margin":"Net Margin",
+                "ebitda_ai":"Net Income","peak_loc":"Peak Credit"}),
+                dollar_cols=["Net Income","Peak Credit"], pct_cols=["Net Margin"])
+
+        with sb:
+            section("Inspector Wage Inflation")
+            base_wage = float(a.get("inspector_wage", 20.0))
+            wage_vals = [max(12.0, base_wage - 3), base_wage - 2, base_wage - 1,
+                         base_wage, base_wage + 1, base_wage + 2, base_wage + 3, base_wage + 4]
+            wage_vals = sorted(set(round(v, 2) for v in wage_vals))
+            with st.spinner("Running sensitivity…"):
+                wage_df = run_sensitivity(a, hc, "inspector_wage", wage_vals)
+
+            fig_w = go.Figure()
+            fig_w.add_trace(go.Scatter(x=wage_df["value"], y=wage_df["ebitda_ai_margin"],
+                mode="lines+markers", name="Net Margin", line=dict(color=PC[2], width=2), marker=dict(size=7)))
+            fig_w.add_vline(x=base_wage, line_dash="dot", line_color="#94A3B8",
+                annotation_text="Current", annotation_font_color="#94A3B8")
+            fig_w.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
+            fig_w.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10),
+                title="Net Margin vs. Inspector Wage", xaxis_title="Wage ($/hr)",
+                yaxis=dict(tickformat=".1%"))
+            st.plotly_chart(fig_w, use_container_width=True)
+
+            _fmt_table(wage_df[["value","ebitda_ai_margin","ebitda_ai","peak_loc"]].rename(columns={
+                "value":"Wage ($/hr)","ebitda_ai_margin":"Net Margin",
+                "ebitda_ai":"Net Income","peak_loc":"Peak Credit"}),
+                dollar_cols=["Net Income","Peak Credit"], pct_cols=["Net Margin"])
+
+    with s6:
+        section("How write-off rate and inspector turnover affect the bottom line")
+
+        sc, sd = st.columns(2)
+        with sc:
+            section("Bad Debt Write-Off Rate")
+            bd_vals = [0.0, 0.005, 0.01, 0.015, 0.02, 0.03, 0.04, 0.05]
+            with st.spinner("Running sensitivity…"):
+                bd_df = run_sensitivity(a, hc, "bad_debt_pct", bd_vals)
+            bd_df["pct_lbl"] = (bd_df["value"] * 100).round(1)
+
+            fig_bd = go.Figure()
+            fig_bd.add_trace(go.Scatter(x=bd_df["pct_lbl"], y=bd_df["ebitda_ai"],
+                mode="lines+markers", name="Net Income", line=dict(color=PC[3], width=2), marker=dict(size=7)))
+            fig_bd.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
+            fig_bd.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10),
+                title="Total Net Income vs. Bad Debt Rate",
+                xaxis_title="Write-Off Rate (%)", yaxis=dict(tickformat="$,.0f"))
+            st.plotly_chart(fig_bd, use_container_width=True)
+
+            _fmt_table(bd_df[["pct_lbl","ebitda_ai_margin","ebitda_ai"]].rename(columns={
+                "pct_lbl":"Bad Debt (%)","ebitda_ai_margin":"Net Margin","ebitda_ai":"Net Income"}),
+                dollar_cols=["Net Income"], pct_cols=["Net Margin"], highlight_neg="Net Income")
+
+        with sd:
+            section("Inspector Annual Turnover Rate")
+            to_vals = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
+            with st.spinner("Running sensitivity…"):
+                to_df = run_sensitivity(a, hc, "inspector_turnover_rate", to_vals)
+            to_df["pct_lbl"] = (to_df["value"] * 100).round(0).astype(int)
+
+            fig_to = go.Figure()
+            fig_to.add_trace(go.Scatter(x=to_df["pct_lbl"], y=to_df["ebitda_ai"],
+                mode="lines+markers", name="Net Income", line=dict(color=PC[4], width=2), marker=dict(size=7)))
+            fig_to.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
+            fig_to.add_vline(x=100, line_dash="dot", line_color="#94A3B8",
+                annotation_text="100% (1× annual)", annotation_font_color="#94A3B8")
+            fig_to.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10),
+                title="Net Income vs. Inspector Turnover",
+                xaxis_title="Annual Turnover Rate (%)", yaxis=dict(tickformat="$,.0f"))
+            st.plotly_chart(fig_to, use_container_width=True)
+
+            _fmt_table(to_df[["pct_lbl","ebitda_ai_margin","ebitda_ai"]].rename(columns={
+                "pct_lbl":"Turnover (%)","ebitda_ai_margin":"Net Margin","ebitda_ai":"Net Income"}),
+                dollar_cols=["Net Income"], pct_cols=["Net Margin"], highlight_neg="Net Income")
 
     st.divider()
 
