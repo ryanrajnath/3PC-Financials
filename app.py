@@ -439,6 +439,7 @@ with ctrl1:
         st.session_state.headcount_plan     = p["headcount"].copy()
         st.session_state.active_preset      = preset_choice
         st.session_state.preset_assumptions = p["assumptions"].copy()
+        del st.session_state["top_preset"]   # reset selectbox to placeholder on next render
         st.rerun()
     if _is_modified():
         st.caption(f"*{_preset_label}*")
