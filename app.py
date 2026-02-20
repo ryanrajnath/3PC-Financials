@@ -335,7 +335,7 @@ PRESETS = {
             "regionalmgr_base": 125_000,
             "mgmt_burden": 0.25,
             # AR / cash
-            "net_days": 90,
+            "net_days": 120,
             "apr": 0.08,
             "max_loc": 10_000_000,   # $10M LOC needed for 500-person AR float
             "cash_buffer": 100_000,
