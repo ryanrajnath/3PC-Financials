@@ -29,51 +29,85 @@ st.set_page_config(
 # ── CSS ──────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* Hide Streamlit chrome */
+/* ── Chrome ─────────────────────────────────────────────────────────── */
 #MainMenu, footer { visibility: hidden; }
 header { visibility: hidden; height: 0; }
-.block-container { padding-top: 1rem; padding-bottom: 2rem; }
+.block-container { padding-top: 0.5rem; padding-bottom: 2rem; }
 
-/* KPI cards */
+/* ── Tab Navigation ─────────────────────────────────────────────────── */
+.stTabs [data-baseweb="tab-list"] {
+    background: transparent !important;
+    border-bottom: 1px solid #1A2744 !important;
+    gap: 0 !important;
+    padding: 0 !important;
+}
+.stTabs [data-baseweb="tab"] {
+    background: transparent !important;
+    color: #4B5D78 !important;
+    border-radius: 0 !important;
+    padding: 10px 22px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+}
+.stTabs [data-baseweb="tab"]:hover { color: #94A3B8 !important; background: transparent !important; }
+.stTabs [aria-selected="true"][data-baseweb="tab"] {
+    color: #3B82F6 !important;
+    font-weight: 600 !important;
+    background: transparent !important;
+}
+.stTabs [data-baseweb="tab-highlight"] {
+    background-color: #3B82F6 !important;
+    height: 2px !important;
+    border-radius: 2px 2px 0 0 !important;
+}
+.stTabs [data-baseweb="tab-border"] { display: none !important; }
+
+/* ── KPI cards ──────────────────────────────────────────────────────── */
 .kpi-card {
-    background: #FFFFFF;
-    border: 1px solid #E2E8F0;
+    background: linear-gradient(160deg, #0C1424 0%, #0F1E3C 100%);
+    border: 1px solid #1A2F5C;
+    border-top: 2px solid #3B82F6;
     border-radius: 10px;
-    padding: 16px 20px;
+    padding: 16px 18px;
     text-align: center;
-    height: 100%;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
-.kpi-label { color: #64748B; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
-.kpi-value { color: #1E293B; font-size: 24px; font-weight: 700; line-height: 1.1; }
-.kpi-sub   { color: #2563EB; font-size: 11px; margin-top: 4px; }
+.kpi-label { color: #4B5D78; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
+.kpi-value { color: #F1F5F9; font-size: 22px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi-sub   { color: #3B82F6; font-size: 11px; margin-top: 4px; }
 
-/* Alert boxes */
-.stale-box { background:#FFFBEB; border-left:3px solid #D97706; padding:10px 14px; border-radius:6px; font-size:13px; margin-bottom:10px; color:#92400E; }
-.warn-box  { background:#FEF2F2; border-left:3px solid #DC2626; padding:10px 14px; border-radius:6px; font-size:13px; margin-bottom:8px; color:#991B1B; }
-.info-box  { background:#EFF6FF; border-left:3px solid #2563EB; padding:10px 14px; border-radius:6px; font-size:13px; margin-bottom:8px; color:#1E40AF; }
+/* ── Alert / status boxes ───────────────────────────────────────────── */
+.stale-box  { background: rgba(245,158,11,0.08);  border: 1px solid rgba(245,158,11,0.25); border-left: 3px solid #F59E0B; padding: 10px 14px; border-radius: 8px; font-size: 12px; color: #FCD34D; }
+.warn-box   { background: rgba(239,68,68,0.07);   border: 1px solid rgba(239,68,68,0.2);   border-left: 3px solid #EF4444; padding: 10px 14px; border-radius: 8px; font-size: 12px; color: #FCA5A5; }
+.info-box   { background: rgba(59,130,246,0.07);  border: 1px solid rgba(59,130,246,0.2);  border-left: 3px solid #3B82F6; padding: 10px 14px; border-radius: 8px; font-size: 12px; color: #93C5FD; }
+.status-ok  { background: rgba(16,185,129,0.08);  border: 1px solid rgba(16,185,129,0.25); padding: 8px 14px; border-radius: 8px; font-size: 11px; color: #6EE7B7; }
+.status-stale { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); padding: 8px 14px; border-radius: 8px; font-size: 11px; color: #FCD34D; }
 
-/* Section headers */
+/* ── Section headers ─────────────────────────────────────────────────── */
 .sec-hdr {
-    color: #64748B; font-size: 10px; text-transform: uppercase;
-    letter-spacing: 1.5px; margin: 14px 0 6px 0;
-    border-bottom: 1px solid #E2E8F0; padding-bottom: 4px;
+    display: flex; align-items: center; gap: 10px;
+    color: #3B82F6; font-size: 9px; text-transform: uppercase;
+    letter-spacing: 2px; margin: 20px 0 10px 0;
+}
+.sec-hdr::after {
+    content: ''; flex: 1; height: 1px;
+    background: linear-gradient(90deg, #1A2F5C 0%, transparent 100%);
 }
 
-/* Action bar */
-.action-bar {
-    background: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    border-radius: 10px;
-    padding: 12px 20px;
-    margin-bottom: 16px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+/* ── App header ─────────────────────────────────────────────────────── */
+.app-hdr {
+    background: linear-gradient(135deg, #0C1424 0%, #0F1E3C 100%);
+    border: 1px solid #1A2F5C;
+    border-radius: 12px;
+    padding: 14px 22px;
+    margin-bottom: 14px;
 }
+.app-hdr-title { font-size: 18px; font-weight: 700; color: #F1F5F9; letter-spacing: -0.3px; }
+.app-hdr-sub   { font-size: 10px; color: #3B82F6; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 3px; }
 </style>
 """, unsafe_allow_html=True)
 
-PC  = ["#2563EB", "#059669", "#D97706", "#DC2626", "#7C3AED", "#0891B2"]
-TPL = "plotly_white"
+PC  = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#06B6D4"]
+TPL = "plotly_dark"
 
 
 # ── Session state ─────────────────────────────────────────────────────────────
@@ -243,31 +277,34 @@ if not st.session_state.bootstrapped:
 # MAIN AREA — Header + KPIs
 # ════════════════════════════════════════════════════════════════════════════
 
-# ── Top action bar ────────────────────────────────────────────────────────
-ab1, ab2, ab3, ab4 = st.columns([2, 1, 1, 2])
-with ab1:
-    st.markdown("### Containment Division Calculator")
-    st.caption("OpSource · 10-year weekly cash model")
-with ab2:
+# ── Header + controls ─────────────────────────────────────────────────────
+st.markdown("""
+<div class="app-hdr">
+  <div class="app-hdr-title">Containment Division Calculator</div>
+  <div class="app-hdr-sub">OpSource &nbsp;·&nbsp; 10-Year Weekly Cash Model</div>
+</div>
+""", unsafe_allow_html=True)
+
+ctrl1, ctrl2, ctrl3 = st.columns([3, 1, 2])
+with ctrl1:
     preset_choice = st.selectbox(
-        "Scenario", ["— preset —"] + list(PRESETS.keys()),
-        label_visibility="collapsed", key="top_preset"
+        "Scenario preset", ["— load preset —"] + list(PRESETS.keys()),
+        key="top_preset"
     )
-    if preset_choice != "— preset —":
+    if preset_choice != "— load preset —":
         p = PRESETS[preset_choice]
         st.session_state.assumptions    = p["assumptions"].copy()
         st.session_state.headcount_plan = p["headcount"].copy()
         st.rerun()
-with ab3:
-    btn_lbl = "▶  Calculate"
-    if st.button(btn_lbl, type="primary", use_container_width=True):
+with ctrl2:
+    if st.button("▶  Run", type="primary", use_container_width=True):
         run_and_store()
         st.rerun()
-with ab4:
+with ctrl3:
     if is_stale():
-        st.markdown('<div class="stale-box">Inputs changed — click <b>Calculate</b></div>', unsafe_allow_html=True)
+        st.markdown('<div class="status-stale">⚡ Inputs changed — click <b>Run</b></div>', unsafe_allow_html=True)
     elif st.session_state.run_ts:
-        st.caption(f"Last calculated: {st.session_state.run_ts}")
+        st.markdown(f'<div class="status-ok">✓ Calculated at {st.session_state.run_ts}</div>', unsafe_allow_html=True)
 
 if results_ready():
     _, mo_h, _ = st.session_state.results
@@ -286,7 +323,7 @@ if results_ready():
 # TABS
 # ════════════════════════════════════════════════════════════════════════════
 tab_setup, tab_dash, tab_fin, tab_hc, tab_sum, tab_sens = st.tabs([
-    "⚙  Setup", "Dashboard", "Financials", "Headcount Plan", "Scenario Summary", "Sensitivity"
+    "⚙  Setup", "◎  Dashboard", "$  Financials", "◈  Headcount", "≋  Summary", "⇌  Sensitivity"
 ])
 
 
@@ -579,27 +616,107 @@ with tab_setup:
 # ════════════════════════════════════════════════════════════════════════════
 with tab_dash:
     if not results_ready():
-        st.markdown('<div class="info-box">Click <b>Calculate</b> above to generate results.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="info-box">Click <b>Run</b> above to generate results.</div>', unsafe_allow_html=True)
         st.stop()
 
     weekly_df, mo_full, qdf_full = st.session_state.results
     a = st.session_state.assumptions
 
+    # ── Risk callouts ──────────────────────────────────────────────────────
     n_loc  = weekly_df["warn_loc_maxed"].sum()  if "warn_loc_maxed"  in weekly_df.columns else 0
     n_mgmt = weekly_df["warn_mgmt_no_insp"].sum() if "warn_mgmt_no_insp" in weekly_df.columns else 0
+    _burden = float(a.get("burden", 0.30))
+    _nd     = int(a.get("net_days", 60))
+    _peak   = float(mo_full["loc_end"].max()) if len(mo_full) else 0
+    _max_loc = float(a.get("max_loc", 1_000_000))
+    _yr1    = mo_full[mo_full["month_idx"] < 12]
+    _margin = float(_yr1["ebitda_margin"].mean()) if len(_yr1) else 0
+
     if n_loc:
-        st.markdown(
-            f'<div class="warn-box">Your credit line was maxed out in {n_loc} week(s). '
-            f'Consider a larger credit facility, reducing headcount, or negotiating faster payment terms.</div>',
-            unsafe_allow_html=True
+        st.error(
+            f"**Credit line maxed in {n_loc} week(s).** "
+            f"Peak draw of {fmt_dollar(_peak)} exceeds your {fmt_dollar(_max_loc)} facility. "
+            "Consider a larger line, faster payment terms, or reducing headcount ramp speed."
+        )
+    elif _peak > _max_loc * 0.85:
+        st.warning(
+            f"**Credit line near limit.** Peak draw {fmt_dollar(_peak)} is >{85:.0f}% of your "
+            f"{fmt_dollar(_max_loc)} facility — limited headroom for delays or surprises."
         )
     if n_mgmt:
-        st.markdown(
-            f'<div class="warn-box">You are paying salaried management in {n_mgmt} week(s) '
-            f'with no inspectors staffed. Check your headcount plan.</div>',
-            unsafe_allow_html=True
+        st.warning(
+            f"**Paying salaried management with no inspectors in {n_mgmt} week(s).** "
+            "Check your headcount plan for gaps between projects."
+        )
+    if _burden > 0.35:
+        st.warning(
+            f"**Burden rate {_burden:.0%} is above 35%.** This compresses margins significantly. "
+            "Verify workers comp classification and benefit assumptions."
+        )
+    if _nd > 90:
+        st.warning(
+            f"**Net {_nd} payment terms.** At this lag, LOC peaks at {fmt_dollar(_peak)}. "
+            "Confirm your credit facility can support this draw before launch."
+        )
+    if _margin < 0.10 and _margin > 0:
+        st.warning(
+            f"**Year 1 operating margin is {_margin:.1%}** — thin margin leaves little room "
+            "for pricing pressure, cost surprises, or payment delays."
         )
 
+    st.divider()
+
+    # ── Investor verdict ───────────────────────────────────────────────────
+    section("Executive Summary")
+    _mo_peak_idx = int(mo_full["loc_end"].idxmax()) if len(mo_full) else 0
+    _mo_peak_period = mo_full.loc[_mo_peak_idx, "period"] if len(mo_full) else "—"
+
+    # Find first month LOC = 0 after peak (self-funding)
+    _post_peak = mo_full.iloc[_mo_peak_idx:]
+    _self_fund_rows = _post_peak[_post_peak["loc_end"] <= 1]
+    _self_fund = _self_fund_rows.iloc[0]["period"] if len(_self_fund_rows) > 0 else None
+
+    # Steady-state EBITDA (avg of last 12 months)
+    _ss_mo = mo_full.tail(12)
+    _ss_ebitda = float(_ss_mo["ebitda_after_interest"].mean())
+    _ss_annual = _ss_ebitda * 12
+    _total_interest = float(mo_full["interest"].sum())
+    _int_coverage = (_ss_ebitda * 12) / max(1, _total_interest)
+    _ropc = (_ss_annual / _peak) if _peak > 100 else 0
+
+    # Breakeven month (first month ebitda_after_interest > 0 sustained)
+    _profitable_rows = mo_full[mo_full["ebitda_after_interest"] > 0]
+    _be_month = _profitable_rows.iloc[0]["period"] if len(_profitable_rows) else "Not in model period"
+
+    if _ss_ebitda > 0 and _peak > 0:
+        st.success(
+            f"**This scenario requires {fmt_dollar(_peak)} in peak credit** (Month {_mo_peak_period}), "
+            f"becomes profitable in **{_be_month}**, "
+            f"and generates **{fmt_dollar(_ss_ebitda)}/month** net after interest at steady state "
+            f"— a **{_ropc:.1f}x annualized return** on peak capital deployed."
+        )
+    elif _ss_ebitda <= 0:
+        st.error(
+            f"**This scenario does not reach profitability** at steady state. "
+            f"Net income at steady state: {fmt_dollar(_ss_ebitda)}/month. "
+            "Review bill rate, burden, or headcount assumptions."
+        )
+
+    # KPI row
+    v1, v2, v3, v4, v5, v6 = st.columns(6)
+    kpi(v1, "Peak Credit Needed",    fmt_dollar(_peak),          _mo_peak_period)
+    kpi(v2, "First Profitable Month", _be_month,                 "net after interest")
+    kpi(v3, "Steady-State / Month",   fmt_dollar(_ss_ebitda),    "net income (last 12 mo)")
+    kpi(v4, "10-Year Net Income",     fmt_dollar(mo_full["ebitda_after_interest"].sum()), "after interest")
+    kpi(v5, "Total Interest Cost",    fmt_dollar(_total_interest), "credit line cost")
+    kpi(v6, "Return on Peak Capital", f"{_ropc:.1f}x",            "ann. EBITDA ÷ peak LOC")
+
+    if _self_fund:
+        st.caption(f"Credit line fully repaid (division self-funding): **{_self_fund}**  ·  EBITDA/Interest coverage: **{_int_coverage:.1f}x**")
+
+    st.divider()
+
+    # ── Date range filter ──────────────────────────────────────────────────
     section("Date Range")
     mo = _range_slider("dash_rng", mo_full)
     lo_idx = mo["month_idx"].min(); hi_idx = mo["month_idx"].max()
@@ -608,22 +725,51 @@ with tab_dash:
 
     st.divider()
 
-    # Credit Line / Cash / AR
+    # ── Credit Line / Cash / AR — with milestone annotations ──────────────
     section("Credit Line, Cash & Accounts Receivable")
+
+    # Detect management milestone months (first appearance of each role)
+    def _first_month(df, col):
+        rows = df[df[col] > 0]
+        return rows.iloc[0]["period"] if len(rows) else None
+
+    m_tl  = _first_month(mo, "team_leads_avg")
+    m_oc  = _first_month(mo, "n_opscoord")
+    m_fs  = _first_month(mo, "n_fieldsup")
+    m_rm  = _first_month(mo, "n_regionalmgr")
+
     fig_loc = go.Figure()
     fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["loc_end"],  name="Credit Line Balance",
-        fill="tozeroy", line=dict(color=PC[3], width=2)))
+        fill="tozeroy", fillcolor="rgba(239,68,68,0.08)", line=dict(color=PC[3], width=2)))
     fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["ar_end"],   name="Accounts Receivable",
         line=dict(color=PC[0], width=2)))
     fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["cash_end"], name="Cash on Hand",
         line=dict(color=PC[1], width=2)))
     fig_loc.add_hline(y=float(a["max_loc"]), line_dash="dot", line_color=PC[3],
                       annotation_text="Credit Limit", annotation_font_color=PC[3])
-    fig_loc.update_layout(template=TPL, height=330, margin=dict(l=10,r=10,t=10,b=10),
+
+    # Milestone vertical lines
+    _milestones = [
+        (m_tl, "1st Team Lead", PC[0]),
+        (m_oc, "1st Ops Coord", PC[4]),
+        (m_fs, "1st Field Sup", PC[2]),
+        (m_rm, "1st Reg. Mgr",  PC[5]),
+    ]
+    for _mp, _ml, _mc in _milestones:
+        if _mp:
+            fig_loc.add_vline(x=_mp, line_dash="dot", line_color=_mc, line_width=1,
+                              annotation_text=_ml, annotation_font_color=_mc,
+                              annotation_position="top left")
+
+    fig_loc.update_layout(template=TPL, height=340, margin=dict(l=10,r=10,t=10,b=10),
                           legend=dict(orientation="h", y=-0.2), yaxis=dict(tickformat="$,.0f"))
     st.plotly_chart(fig_loc, use_container_width=True)
+    st.caption(
+        f"Dotted vertical lines mark when each management layer is first triggered. "
+        f"Credit limit line at {fmt_dollar(float(a['max_loc']))}."
+    )
 
-    # Waterfall
+    # ── Cash Flow Waterfall ────────────────────────────────────────────────
     section("Cash Flow Summary — Selected Period")
     wf_start = float(wdf["cash_begin"].iloc[0]) if len(wdf) else float(a.get("initial_cash", 0))
     wf_values = [
@@ -643,7 +789,7 @@ with tab_dash:
         x=["Starting Cash","+ Customer Payments","− Hourly Payroll","− Salaried Mgmt",
            "− Overhead","− Interest","+ Credit Draw","− Credit Repay","Ending Cash"],
         y=wf_values,
-        connector=dict(line=dict(color="#444")),
+        connector=dict(line=dict(color="#334155")),
         increasing=dict(marker_color=PC[1]),
         decreasing=dict(marker_color=PC[3]),
         totals=dict(marker_color=PC[0]),
@@ -664,7 +810,7 @@ with tab_dash:
         section("Net Income (After Interest)")
         st.plotly_chart(_line(mo, "period",
             ["ebitda", "ebitda_after_interest"],
-            ["Operating Profit (EBITDA)", "Net Income (after interest)"],
+            ["Operating Profit", "Net Income (after interest)"],
             "Monthly Profit"), use_container_width=True)
 
     c3, c4 = st.columns(2)
@@ -683,14 +829,12 @@ with tab_dash:
 
     st.divider()
 
-    # Payroll Float / Working Capital Gap
+    # ── Payroll Float / Working Capital Gap ───────────────────────────────
     section("Payroll Float — Cash Out vs. Cash In")
     st.caption(
-        "Your credit line bridges the gap between when you pay employees (weekly) and when "
-        "customers pay their invoices. The chart below shows weekly cash obligations vs. "
-        "cash coming in — the difference is your working capital requirement."
+        "Your credit line bridges the gap between weekly payroll and monthly customer payments. "
+        f"With Net {int(a['net_days'])} terms, you pay employees weeks before cash arrives."
     )
-    wf_cols = ["payroll_cash_out", "salaried_wk", "overhead_wk", "collections", "loc_end"]
     if all(c in wdf.columns for c in ["payroll_cash_out", "salaried_wk", "overhead_wk"]):
         wdf_pf = wdf.copy()
         wdf_pf["total_cash_out"] = wdf_pf["payroll_cash_out"] + wdf_pf["salaried_wk"] + wdf_pf["overhead_wk"]
@@ -717,10 +861,8 @@ with tab_dash:
             yaxis2=dict(tickformat="$,.0f", title="Credit Line ($)",
                         overlaying="y", side="right", showgrid=False),
         )
-        fig_pf.add_hline(y=0, line_dash="dot", line_color="#444", line_width=1)
         st.plotly_chart(fig_pf, use_container_width=True)
 
-        # Working capital metrics
         pf1, pf2, pf3 = st.columns(3)
         peak_weekly_out = wdf_pf["total_cash_out"].max()
         avg_weekly_gap  = (wdf_pf["total_cash_out"] - wdf_pf["collections"]).mean()
@@ -729,24 +871,25 @@ with tab_dash:
         kpi(pf2, "Avg Weekly Funding Gap", fmt_dollar(avg_weekly_gap),  "cash out minus cash in")
         kpi(pf3, "Peak Credit Line Draw",  fmt_dollar(peak_loc_val),    "max balance outstanding")
 
-    # Break-even
+    # ── Break-even Calculator ──────────────────────────────────────────────
+    st.divider()
     section("Break-Even Calculator")
-    st.caption("Find the minimum number of inspectors needed to be profitable in Year 1 at a given payment term.")
+    st.caption("Find the minimum inspectors needed to be profitable in Year 1 at a given payment term.")
     bc1, bc2, bc3 = st.columns(3)
     be_nd = bc1.selectbox(
         "Payment Terms to Test", [30, 45, 60, 90, 120, 150], index=2,
-        help="The customer payment terms to assume for this break-even test. Longer terms require more inspectors to break even because credit line interest costs increase."
+        help="Longer terms require more inspectors to break even — credit line interest rises."
     )
     if bc2.button("Find Break-Even", use_container_width=True):
         with st.spinner("Calculating…"):
             be = find_breakeven_inspectors(a, be_nd)
         bc3.success(
-            f"You need at least **{be} inspectors** staffed every month to be profitable in Year 1 at Net {be_nd} payment terms."
+            f"Need at least **{be} inspectors** staffed every month to be profitable in Year 1 at Net {be_nd}."
         )
 
     st.divider()
 
-    # Export
+    # ── Export ─────────────────────────────────────────────────────────────
     section("Export to Excel")
     if st.button("Build Excel Report"):
         with st.spinner("Building…"):
@@ -1088,6 +1231,55 @@ with tab_sum:
 
     st.divider()
 
+    # ── Span of Control — Scaling Table ───────────────────────────────────
+    section("Management Scaling — When Each Layer Triggers")
+    st.caption(
+        "As you add inspectors, salaried management layers activate automatically. "
+        "Each row shows the inspector count that triggers the **next** salaried hire and the monthly cost step-up."
+    )
+    _tl_r  = int(a.get("team_lead_ratio", 12))
+    _oc_r  = int(a.get("opscoord_span", 75))
+    _fs_r  = int(a.get("fieldsup_span", 25))
+    _rm_r  = int(a.get("regionalmgr_span", 175))
+    _gm_mo   = a.get("gm_loaded_annual", 117_000) / 12
+    _oc_mo   = a.get("opscoord_base", 65_000)   * (1 + a.get("mgmt_burden", 0.25)) / 12
+    _fs_mo   = a.get("fieldsup_base", 70_000)   * (1 + a.get("mgmt_burden", 0.25)) / 12
+    _rm_mo   = a.get("regionalmgr_base", 110_000) * (1 + a.get("mgmt_burden", 0.25)) / 12
+
+    _scale_rows = []
+    for _n_insp in [0, 5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100, 125, 150, 175, 200]:
+        if _n_insp == 0:
+            _tl  = 0; _oc = 0; _fs = 0; _rm = 0
+        else:
+            _tl  = ceil(_n_insp / _tl_r)
+            _oc  = ceil(_n_insp / _oc_r)
+            _fs  = ceil(_n_insp / _fs_r)
+            _rm  = ceil(_n_insp / _rm_r)
+        _sal_mo = _gm_mo + _oc * _oc_mo + _fs * _fs_mo + _rm * _rm_mo
+        _scale_rows.append({
+            "Inspectors": _n_insp,
+            "Team Leads": _tl,
+            "Ops Coords": _oc,
+            "Field Sups": _fs,
+            "Reg. Mgrs": _rm,
+            "Total Salaried Mgmt": int(_oc + _fs + _rm + 1),  # +1 for GM
+            "Salaried Cost / Month": _sal_mo,
+        })
+    _sc_df = pd.DataFrame(_scale_rows)
+    st.dataframe(
+        _sc_df.style.format({"Salaried Cost / Month": "${:,.0f}"}),
+        use_container_width=True, height=480
+    )
+    st.caption(
+        f"Ratios: 1 Team Lead per {_tl_r} inspectors · "
+        f"1 Ops Coord per {_oc_r} · "
+        f"1 Field Sup per {_fs_r} · "
+        f"1 Reg. Mgr per {_rm_r}. "
+        f"GM always active (${_gm_mo:,.0f}/mo loaded)."
+    )
+
+    st.divider()
+
     # Pie charts + trend
     section("Revenue & Expense Breakdown")
     c1, c2 = st.columns(2)
@@ -1128,7 +1320,7 @@ with tab_sum:
 # ════════════════════════════════════════════════════════════════════════════
 with tab_sens:
     if not results_ready():
-        st.markdown('<div class="info-box">Click <b>Calculate</b> above first.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="info-box">Click <b>Run</b> above first.</div>', unsafe_allow_html=True)
         st.stop()
 
     weekly_df, mo_full, qdf_full = st.session_state.results
@@ -1137,30 +1329,69 @@ with tab_sens:
 
     st.caption(
         "Each scenario re-runs the full 10-year model changing one variable at a time. "
-        "Everything else stays at your current values."
+        "Color coding: green = healthy, yellow = caution, red = danger. "
+        "All other assumptions stay at current values."
     )
 
-    def _sc(df, xc, xl, yc, yl, pct=False):
-        fig = go.Figure(go.Scatter(
-            x=df[xc], y=df[yc], mode="lines+markers",
-            line=dict(color=PC[0], width=2), marker=dict(size=7)
+    def _heatmap(df, row_col, col_col, val_col, title, fmt="$,.0f", reverse=False):
+        """Build a color-coded heatmap from three columns: row variable, col variable, value."""
+        pivot = df.pivot(index=row_col, columns=col_col, values=val_col)
+        vmin, vmax = pivot.values.min(), pivot.values.max()
+        # Color scale: green=good, red=bad (reverse if lower is better)
+        colorscale = "RdYlGn" if not reverse else "RdYlGn_r"
+        fig = go.Figure(go.Heatmap(
+            z=pivot.values,
+            x=[str(c) for c in pivot.columns],
+            y=[str(r) for r in pivot.index],
+            colorscale=colorscale,
+            zmin=vmin, zmax=vmax,
+            text=[[f"${v:,.0f}" if "$" in fmt else f"{v:.1%}" if "%" in fmt else f"{v:.2f}"
+                   for v in row] for row in pivot.values],
+            texttemplate="%{text}",
+            textfont=dict(size=11),
+            showscale=True,
+            colorbar=dict(thickness=14, len=0.8),
         ))
-        fig.update_layout(template=TPL, height=250, margin=dict(l=10,r=10,t=30,b=10),
-                          xaxis_title=xl, yaxis_title=yl,
-                          yaxis=dict(tickformat=".1%" if pct else "$,.0f"))
-        fig.add_hline(y=0, line_dash="dot", line_color="#444", line_width=1)
+        fig.update_layout(
+            template=TPL, title=title, height=320,
+            margin=dict(l=10, r=10, t=40, b=10),
+            xaxis=dict(title=col_col, side="bottom"),
+            yaxis=dict(title=row_col, autorange="reversed"),
+        )
         return fig
 
     s1, s2, s3, s4 = st.tabs(["Payment Terms","Bill Rate","Payroll Burden","Overtime"])
 
     with s1:
-        section("Slower customer payments require a larger credit line")
+        section("How payment terms drive your credit line and returns")
         nd_vals = [30, 45, 60, 75, 90, 105, 120, 150]
-        with st.spinner("Running…"):
+        with st.spinner("Running sensitivity…"):
             nd_df = run_sensitivity(a, hc, "net_days", nd_vals)
+
         c1, c2 = st.columns(2)
-        c1.plotly_chart(_sc(nd_df,"value","Net Days","peak_loc","Peak Credit Line ($)"), use_container_width=True)
-        c2.plotly_chart(_sc(nd_df,"value","Net Days","ebitda_ai_margin","Net Income Margin", pct=True), use_container_width=True)
+        with c1:
+            # Line: peak LOC vs net days
+            fig_nd1 = go.Figure(go.Scatter(
+                x=nd_df["value"], y=nd_df["peak_loc"], mode="lines+markers",
+                line=dict(color=PC[0], width=2), marker=dict(size=7)
+            ))
+            fig_nd1.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10),
+                                  title="Peak Credit Line vs. Payment Terms",
+                                  xaxis_title="Net Days", yaxis=dict(tickformat="$,.0f"))
+            fig_nd1.add_hline(y=float(a["max_loc"]), line_dash="dot", line_color=PC[3],
+                              annotation_text="Your Credit Limit")
+            st.plotly_chart(fig_nd1, use_container_width=True)
+        with c2:
+            fig_nd2 = go.Figure(go.Scatter(
+                x=nd_df["value"], y=nd_df["ebitda_ai_margin"], mode="lines+markers",
+                line=dict(color=PC[1], width=2), marker=dict(size=7)
+            ))
+            fig_nd2.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10),
+                                  title="Net Income Margin vs. Payment Terms",
+                                  xaxis_title="Net Days", yaxis=dict(tickformat=".1%"))
+            fig_nd2.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
+            st.plotly_chart(fig_nd2, use_container_width=True)
+
         _fmt_table(nd_df[["value","peak_loc","annual_interest","ebitda_ai","ebitda_ai_margin"]].rename(columns={
             "value":"Net Days","peak_loc":"Peak Credit","annual_interest":"Total Interest",
             "ebitda_ai":"Net Income","ebitda_ai_margin":"Net Margin"}),
@@ -1168,43 +1399,162 @@ with tab_sens:
             pct_cols=["Net Margin"], highlight_neg="Net Income")
 
     with s2:
-        section("Bill rate impact on margin and credit line")
-        br_vals = [37.0, 37.5, 38.0, 38.5, 39.0, 39.5, 40.0, 40.5, 41.0, 42.0]
-        with st.spinner("Running…"):
+        section("Bill rate impact on margin, credit need, and total income")
+        br_vals = [36.0, 37.0, 38.0, 39.0, 40.0, 41.0, 42.0, 43.0, 44.0]
+        with st.spinner("Running sensitivity…"):
             br_df = run_sensitivity(a, hc, "st_bill_rate", br_vals)
+
         c1, c2 = st.columns(2)
-        c1.plotly_chart(_sc(br_df,"value","Bill Rate ($/hr)","ebitda_ai_margin","Net Income Margin", pct=True), use_container_width=True)
-        c2.plotly_chart(_sc(br_df,"value","Bill Rate ($/hr)","peak_loc","Peak Credit Line ($)"), use_container_width=True)
+        with c1:
+            fig_br1 = go.Figure(go.Scatter(
+                x=br_df["value"], y=br_df["ebitda_ai_margin"], mode="lines+markers",
+                line=dict(color=PC[1], width=2), marker=dict(size=7)
+            ))
+            fig_br1.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10),
+                                  title="Net Margin vs. Bill Rate",
+                                  xaxis_title="Bill Rate ($/hr)", yaxis=dict(tickformat=".1%"))
+            fig_br1.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
+            st.plotly_chart(fig_br1, use_container_width=True)
+        with c2:
+            fig_br2 = go.Figure(go.Scatter(
+                x=br_df["value"], y=br_df["ebitda_ai"], mode="lines+markers",
+                line=dict(color=PC[0], width=2), marker=dict(size=7)
+            ))
+            fig_br2.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10),
+                                  title="10-Year Net Income vs. Bill Rate",
+                                  xaxis_title="Bill Rate ($/hr)", yaxis=dict(tickformat="$,.0f"))
+            st.plotly_chart(fig_br2, use_container_width=True)
+
         _fmt_table(br_df[["value","ebitda_margin","ebitda_ai_margin","peak_loc","ebitda_ai"]].rename(columns={
             "value":"Bill Rate","ebitda_margin":"Oper. Margin","ebitda_ai_margin":"Net Margin",
             "peak_loc":"Peak Credit","ebitda_ai":"Net Income"}),
             dollar_cols=["Peak Credit","Net Income"], pct_cols=["Oper. Margin","Net Margin"])
 
     with s3:
-        section("How employer burden rate affects your profitability")
-        burd_vals = [0.20, 0.25, 0.28, 0.30, 0.33, 0.35, 0.38, 0.40]
-        with st.spinner("Running…"):
+        section("How payroll burden compresses margin and grows credit need")
+        burd_vals = [0.20, 0.25, 0.28, 0.30, 0.33, 0.35, 0.38, 0.40, 0.45]
+        with st.spinner("Running sensitivity…"):
             burd_df = run_sensitivity(a, hc, "burden", burd_vals)
-        burd_df["pct"] = burd_df["value"] * 100
+        burd_df["pct"] = (burd_df["value"] * 100).round(0).astype(int)
+
         c1, c2 = st.columns(2)
-        c1.plotly_chart(_sc(burd_df,"pct","Burden (%)","ebitda_ai_margin","Net Income Margin", pct=True), use_container_width=True)
-        c2.plotly_chart(_sc(burd_df,"pct","Burden (%)","peak_loc","Peak Credit Line ($)"), use_container_width=True)
+        with c1:
+            fig_b1 = go.Figure(go.Scatter(
+                x=burd_df["pct"], y=burd_df["ebitda_ai_margin"], mode="lines+markers",
+                line=dict(color=PC[1], width=2), marker=dict(size=7)
+            ))
+            fig_b1.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10),
+                                  title="Net Margin vs. Burden Rate",
+                                  xaxis_title="Burden (%)", yaxis=dict(tickformat=".1%"))
+            fig_b1.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
+            fig_b1.add_vline(x=35, line_dash="dot", line_color="#F59E0B",
+                             annotation_text="35% caution", annotation_font_color="#F59E0B")
+            st.plotly_chart(fig_b1, use_container_width=True)
+        with c2:
+            fig_b2 = go.Figure(go.Scatter(
+                x=burd_df["pct"], y=burd_df["peak_loc"], mode="lines+markers",
+                line=dict(color=PC[3], width=2), marker=dict(size=7)
+            ))
+            fig_b2.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10),
+                                  title="Peak Credit Line vs. Burden Rate",
+                                  xaxis_title="Burden (%)", yaxis=dict(tickformat="$,.0f"))
+            st.plotly_chart(fig_b2, use_container_width=True)
+
         _fmt_table(burd_df[["pct","ebitda_ai","ebitda_ai_margin","peak_loc"]].rename(columns={
             "pct":"Burden (%)","ebitda_ai":"Net Income","ebitda_ai_margin":"Net Margin","peak_loc":"Peak Credit"}),
             dollar_cols=["Net Income","Peak Credit"], pct_cols=["Net Margin"])
 
     with s4:
-        section("How overtime hours affect revenue and margin")
+        section("How overtime hours affect revenue, margin, and credit need")
         ot_vals = [0, 2, 4, 6, 8, 10, 12, 15, 20]
-        with st.spinner("Running…"):
+        with st.spinner("Running sensitivity…"):
             ot_df = run_sensitivity(a, hc, "ot_hours", ot_vals)
+
         c1, c2 = st.columns(2)
-        c1.plotly_chart(_sc(ot_df,"value","OT Hrs/wk","ebitda_ai_margin","Net Income Margin", pct=True), use_container_width=True)
-        c2.plotly_chart(_sc(ot_df,"value","OT Hrs/wk","total_revenue","Total Revenue ($)"), use_container_width=True)
+        with c1:
+            fig_ot1 = go.Figure(go.Scatter(
+                x=ot_df["value"], y=ot_df["ebitda_ai_margin"], mode="lines+markers",
+                line=dict(color=PC[1], width=2), marker=dict(size=7)
+            ))
+            fig_ot1.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10),
+                                   title="Net Margin vs. OT Hours/Week",
+                                   xaxis_title="OT Hrs/wk", yaxis=dict(tickformat=".1%"))
+            st.plotly_chart(fig_ot1, use_container_width=True)
+        with c2:
+            fig_ot2 = go.Figure(go.Scatter(
+                x=ot_df["value"], y=ot_df["total_revenue"], mode="lines+markers",
+                line=dict(color=PC[0], width=2), marker=dict(size=7)
+            ))
+            fig_ot2.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10),
+                                   title="Total Revenue vs. OT Hours/Week",
+                                   xaxis_title="OT Hrs/wk", yaxis=dict(tickformat="$,.0f"))
+            st.plotly_chart(fig_ot2, use_container_width=True)
+
         _fmt_table(ot_df[["value","ebitda_margin","ebitda_ai_margin","total_revenue","ebitda_ai"]].rename(columns={
             "value":"OT Hrs/wk","ebitda_margin":"Oper. Margin","ebitda_ai_margin":"Net Margin",
             "total_revenue":"Total Revenue","ebitda_ai":"Net Income"}),
             dollar_cols=["Total Revenue","Net Income"], pct_cols=["Oper. Margin","Net Margin"])
+
+    st.divider()
+
+    # ── Cross-variable heatmaps ────────────────────────────────────────────
+    section("Cross-Variable Sensitivity Heatmaps")
+    st.caption(
+        "Each cell shows the outcome when BOTH variables change simultaneously. "
+        "Green = healthy, red = danger. Run time: ~10–20 seconds."
+    )
+
+    hm1, hm2 = st.tabs(["Bill Rate × Burden → Net Margin", "Net Days × Inspectors → Peak LOC"])
+
+    with hm1:
+        if st.button("Run Heatmap: Bill Rate × Burden", use_container_width=True):
+            bill_rates  = [37.0, 38.0, 39.0, 40.0, 41.0, 42.0]
+            burden_pcts = [0.25, 0.28, 0.30, 0.33, 0.35, 0.38]
+            rows = []
+            prog = st.progress(0)
+            total = len(bill_rates) * len(burden_pcts)
+            done  = 0
+            with st.spinner("Running heatmap…"):
+                for br in bill_rates:
+                    for bu in burden_pcts:
+                        _a2 = a.copy(); _a2["st_bill_rate"] = br; _a2["burden"] = bu
+                        _df = run_sensitivity(_a2, hc, "st_bill_rate", [br])
+                        rows.append({"Bill Rate": f"${br:.0f}", "Burden": f"{bu:.0%}",
+                                     "Net Margin": float(_df["ebitda_ai_margin"].iloc[0])})
+                        done += 1
+                        prog.progress(done / total)
+            prog.empty()
+            hm_df = pd.DataFrame(rows)
+            fig_hm = _heatmap(hm_df, "Bill Rate", "Burden", "Net Margin",
+                               "Net Income Margin — Bill Rate × Burden", fmt=".1%")
+            st.plotly_chart(fig_hm, use_container_width=True)
+            st.caption("Green = higher margin. Red = negative / near-zero margin.")
+
+    with hm2:
+        if st.button("Run Heatmap: Net Days × Inspectors", use_container_width=True):
+            net_days_list = [30, 45, 60, 90, 120]
+            insp_counts   = [20, 30, 40, 50, 60, 75]
+            rows = []
+            prog2 = st.progress(0)
+            total2 = len(net_days_list) * len(insp_counts)
+            done2  = 0
+            with st.spinner("Running heatmap…"):
+                for nd in net_days_list:
+                    for ic in insp_counts:
+                        _a2 = a.copy(); _a2["net_days"] = nd
+                        _hc2 = [ic] * 120
+                        _df = run_sensitivity(_a2, _hc2, "net_days", [nd])
+                        rows.append({"Net Days": str(nd), "Inspectors": str(ic),
+                                     "Peak LOC": float(_df["peak_loc"].iloc[0])})
+                        done2 += 1
+                        prog2.progress(done2 / total2)
+            prog2.empty()
+            hm_df2 = pd.DataFrame(rows)
+            fig_hm2 = _heatmap(hm_df2, "Net Days", "Inspectors", "Peak LOC",
+                                "Peak Credit Line — Net Days × Inspector Count",
+                                fmt="$,.0f", reverse=True)
+            st.plotly_chart(fig_hm2, use_container_width=True)
+            st.caption("Red = higher credit draw required. Green = lower funding need.")
 
     st.divider()
     if st.button("Export Full Report + Sensitivity to Excel"):
