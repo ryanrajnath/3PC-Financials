@@ -465,6 +465,11 @@ if results_ready():
     if "global_range_hi" not in st.session_state:
         st.session_state.global_range_hi = _hi_def
 
+    # Clamp stored range to valid bounds (protects against preset switches changing dataset length)
+    _n_opts = len(mo_h)
+    st.session_state.global_range_lo = max(1, min(st.session_state.global_range_lo, _n_opts))
+    st.session_state.global_range_hi = max(st.session_state.global_range_lo, min(st.session_state.global_range_hi, _n_opts))
+
     _rlo, _rhi = st.select_slider(
         "Date Range — applies to all tabs",
         options=list(range(1, len(mo_h) + 1)),
@@ -496,7 +501,7 @@ if results_ready():
     kpi(k2, f"{_lbl_top} Revenue",       fmt_dollar(mo_top["revenue"].sum()),                     "billed (accrual)")
     kpi(k3, f"{_lbl_top} Net Income",    fmt_dollar(mo_top["ebitda_after_interest"].sum()),        "after interest")
     kpi(k4, "Total Borrowing Cost",      fmt_dollar(mo_top["interest"].sum()),                    "credit line interest")
-    yr1 = mo_top[mo_top["month_idx"] < _rlo + 11]
+    yr1 = mo_top[mo_top["month_idx"].between(_rlo - 1, _rlo + 10)]
     kpi(k5, "Year 1 Net Income",         fmt_dollar(yr1["ebitda_after_interest"].sum()),           "first 12 months of range")
     st.divider()
 
@@ -906,7 +911,7 @@ with tab_inputs:
             "Tax provision shown below is an estimate of the owner's personal obligation."
         )
         _sc_pct = st.slider("SC State Tax Rate (%)", min_value=0, max_value=15,
-            value=int(round(float(a.get("sc_state_tax_rate", 0.059)) * 100 * 10) / 10),
+            value=int(round(float(a.get("sc_state_tax_rate", 0.059)) * 100)),
             step=1, format="%d%%", key="adv_sc_tax")
         a["sc_state_tax_rate"] = _sc_pct / 100.0
         _fed_pct = st.slider("Federal Tax Rate (%)", min_value=0, max_value=40,
@@ -1063,7 +1068,7 @@ with tab_brief:
         ]
         for _mi, _mp, _ml, _mc in _milestones:
             if _mi is not None:
-                fig_loc.add_vline(x=int(_mi), line_dash="dot", line_color=_mc, line_width=1,
+                fig_loc.add_vline(x=_mp, line_dash="dot", line_color=_mc, line_width=1,
                                   annotation_text=f"{_ml} ({_mp})", annotation_font_color=_mc,
                                   annotation_position="top left")
 
@@ -1093,7 +1098,7 @@ with tab_brief:
         if len(_pos_rows):
             _cross_idx    = _pos_rows.index[0]
             _cross_period = _pos_rows.iloc[0]["period"]
-            fig_cf.add_vline(x=int(_cross_idx), line_dash="dot", line_color=PC[1], line_width=1,
+            fig_cf.add_vline(x=_cross_period, line_dash="dot", line_color=PC[1], line_width=1,
                              annotation_text=f"Breakeven: {_cross_period}",
                              annotation_font_color=PC[1], annotation_position="top left")
 
@@ -1400,7 +1405,7 @@ with tab_detail:
             help="First month to fill. Month 1 = your model start date.")
         ft = c3.number_input("To Month",   1, 120, 12, step=1, key="ft",
             help="Last month to fill (inclusive). Month 12 = end of Year 1.")
-        if c4.button("Apply", use_container_width=True,
+        if c4.button("Apply", key="hc_apply", use_container_width=True,
                      help="Sets inspector count for the selected month range."):
             for i in range(int(ff) - 1, int(ft)):
                 hc[i] = int(fv)
