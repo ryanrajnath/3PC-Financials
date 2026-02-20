@@ -29,17 +29,31 @@ st.set_page_config(
 # ── CSS ──────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* ── Kill Streamlit dim-during-run overlay ───────────────────────────── */
-.stApp [data-testid="stAppViewBlockContainer"] { opacity: 1 !important; }
-.stApp > div { opacity: 1 !important; }
-div[data-testid="stStatusWidget"] { opacity: 1 !important; }
-/* Override the running-state fade Streamlit injects */
-.stMain, .main, .block-container,
-[data-testid="stMain"], [data-testid="stVerticalBlock"],
-[data-testid="stHorizontalBlock"] {
+/* ═══════════════════════════════════════════════════════════════════════
+   NUCLEAR OPACITY KILL — stop ALL hover/run/focus dims everywhere
+   ═══════════════════════════════════════════════════════════════════════ */
+*, *::before, *::after { transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease !important; }
+.stApp, .stApp *,
+.stApp [data-testid],
+.stApp > div,
+.block-container, .block-container *,
+[data-testid="stMain"], [data-testid="stMain"] *,
+[data-testid="stVerticalBlock"], [data-testid="stHorizontalBlock"],
+[data-testid="stAppViewBlockContainer"], [data-testid="stAppViewBlockContainer"] * {
     opacity: 1 !important;
-    transition: none !important;
 }
+/* Kill BaseWeb overlay/backdrop that dims on hover/focus */
+[data-baseweb="layer"], [data-baseweb="popover"],
+div[class*="Overlay"], div[class*="overlay"],
+div[class*="backdrop"], div[class*="Backdrop"] {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+/* Kill any Streamlit tooltip dim */
+.stTooltipIcon:hover ~ *, .stTooltipIcon:focus ~ * { opacity: 1 !important; }
+/* Kill the sidebar hover that dims main */
+[data-testid="stSidebar"]:hover ~ [data-testid="stMain"],
+[data-testid="stSidebar"]:hover ~ [data-testid="stMain"] * { opacity: 1 !important; }
 
 /* ── Chrome ─────────────────────────────────────────────────────────── */
 #MainMenu, footer { visibility: hidden; }
@@ -49,27 +63,33 @@ header { visibility: hidden; height: 0; }
 /* ── Tab Navigation ─────────────────────────────────────────────────── */
 .stTabs [data-baseweb="tab-list"] {
     background: transparent !important;
-    border-bottom: 1px solid #1E3A6E !important;
+    border-bottom: 1px solid #2A3F5F !important;
     gap: 0 !important;
     padding: 0 !important;
 }
 .stTabs [data-baseweb="tab"] {
     background: transparent !important;
-    color: #5B7BA8 !important;
+    color: #64748B !important;
     border-radius: 0 !important;
     padding: 10px 22px !important;
     font-size: 13px !important;
     font-weight: 500 !important;
     letter-spacing: 0.3px !important;
+    opacity: 1 !important;
 }
-.stTabs [data-baseweb="tab"]:hover { color: #B8CFEA !important; background: rgba(59,130,246,0.06) !important; }
+.stTabs [data-baseweb="tab"]:hover {
+    color: #E2E8F0 !important;
+    background: rgba(255,255,255,0.04) !important;
+    opacity: 1 !important;
+}
 .stTabs [aria-selected="true"][data-baseweb="tab"] {
-    color: #60A5FA !important;
+    color: #FFFFFF !important;
     font-weight: 700 !important;
     background: transparent !important;
+    opacity: 1 !important;
 }
 .stTabs [data-baseweb="tab-highlight"] {
-    background-color: #3B82F6 !important;
+    background-color: #38BDF8 !important;
     height: 2px !important;
     border-radius: 2px 2px 0 0 !important;
 }
@@ -77,61 +97,72 @@ header { visibility: hidden; height: 0; }
 
 /* ── KPI cards ──────────────────────────────────────────────────────── */
 .kpi-card {
-    background: linear-gradient(160deg, #0B1628 0%, #0E2040 100%);
-    border: 1px solid #1E3A6E;
-    border-top: 2px solid #3B82F6;
+    background: #111827;
+    border: 1px solid #1F2D45;
+    border-top: 2px solid #38BDF8;
     border-radius: 10px;
     padding: 16px 18px;
     text-align: center;
 }
-.kpi-label { color: #6B88AD; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
-.kpi-value { color: #F8FAFC; font-size: 22px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.kpi-sub   { color: #60A5FA; font-size: 11px; margin-top: 4px; }
+.kpi-label { color: #94A3B8; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
+.kpi-value { color: #FFFFFF; font-size: 22px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi-sub   { color: #38BDF8; font-size: 11px; margin-top: 4px; }
 
 /* ── Alert / status boxes ───────────────────────────────────────────── */
-.stale-box  { background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.40); border-left: 3px solid #F59E0B; padding: 10px 14px; border-radius: 8px; font-size: 12px; color: #FDE68A; }
-.warn-box   { background: rgba(239,68,68,0.10);  border: 1px solid rgba(239,68,68,0.35);  border-left: 3px solid #EF4444; padding: 10px 14px; border-radius: 8px; font-size: 12px; color: #FCA5A5; }
-.info-box   { background: rgba(59,130,246,0.10); border: 1px solid rgba(59,130,246,0.35); border-left: 3px solid #3B82F6; padding: 10px 14px; border-radius: 8px; font-size: 12px; color: #BFDBFE; }
-.status-ok  { background: rgba(16,185,129,0.10); border: 1px solid rgba(16,185,129,0.35); padding: 8px 14px; border-radius: 8px; font-size: 11px; color: #A7F3D0; }
-.status-stale { background: rgba(245,158,11,0.10); border: 1px solid rgba(245,158,11,0.35); padding: 8px 14px; border-radius: 8px; font-size: 11px; color: #FDE68A; }
+.stale-box  { background: #1C1500; border: 1px solid #78350F; border-left: 3px solid #F59E0B; padding: 10px 14px; border-radius: 6px; font-size: 12px; color: #FDE68A; }
+.warn-box   { background: #1A0000; border: 1px solid #7F1D1D; border-left: 3px solid #F87171; padding: 10px 14px; border-radius: 6px; font-size: 12px; color: #FECACA; }
+.info-box   { background: #001525; border: 1px solid #0C4A6E; border-left: 3px solid #38BDF8; padding: 10px 14px; border-radius: 6px; font-size: 12px; color: #BAE6FD; }
+.status-ok  { background: #001A0F; border: 1px solid #14532D; padding: 8px 14px; border-radius: 6px; font-size: 11px; color: #86EFAC; }
+.status-stale { background: #1C1500; border: 1px solid #78350F; padding: 8px 14px; border-radius: 6px; font-size: 11px; color: #FDE68A; }
 
 /* ── Section headers ─────────────────────────────────────────────────── */
 .sec-hdr {
     display: flex; align-items: center; gap: 10px;
-    color: #60A5FA; font-size: 9px; text-transform: uppercase;
-    letter-spacing: 2px; margin: 24px 0 12px 0;
+    color: #94A3B8; font-size: 9px; text-transform: uppercase;
+    letter-spacing: 2.5px; margin: 28px 0 14px 0;
     font-weight: 600;
 }
 .sec-hdr::after {
     content: ''; flex: 1; height: 1px;
-    background: linear-gradient(90deg, #1E3A6E 0%, transparent 100%);
+    background: linear-gradient(90deg, #2A3F5F 0%, transparent 100%);
 }
 
 /* ── App header ─────────────────────────────────────────────────────── */
 .app-hdr {
-    background: linear-gradient(135deg, #0B1628 0%, #0E2040 100%);
-    border: 1px solid #1E3A6E;
-    border-left: 4px solid #3B82F6;
-    border-radius: 12px;
+    background: #0D1117;
+    border: 1px solid #21364F;
+    border-left: 4px solid #38BDF8;
+    border-radius: 10px;
     padding: 14px 22px;
     margin-bottom: 14px;
 }
-.app-hdr-title { font-size: 20px; font-weight: 700; color: #F8FAFC; letter-spacing: -0.3px; }
-.app-hdr-sub   { font-size: 10px; color: #60A5FA; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
+.app-hdr-title { font-size: 20px; font-weight: 700; color: #FFFFFF; letter-spacing: -0.3px; }
+.app-hdr-sub   { font-size: 10px; color: #38BDF8; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
 
-/* ── Sidebar contrast boost ─────────────────────────────────────────── */
+/* ── Sidebar ─────────────────────────────────────────────────────────── */
 [data-testid="stSidebar"] {
-    background: #060E1C !important;
-    border-right: 1px solid #1E3A6E !important;
+    background: #0D1117 !important;
+    border-right: 1px solid #21364F !important;
 }
-[data-testid="stSidebar"] label,
-[data-testid="stSidebar"] .stMarkdown p {
-    color: #CBD5E1 !important;
-}
+[data-testid="stSidebar"] label { color: #E2E8F0 !important; }
+[data-testid="stSidebar"] .stMarkdown p { color: #CBD5E1 !important; }
+[data-testid="stSidebar"] .stMarkdown h1,
+[data-testid="stSidebar"] .stMarkdown h2,
+[data-testid="stSidebar"] .stMarkdown h3 { color: #FFFFFF !important; }
+/* Sidebar section separators */
+[data-testid="stSidebar"] hr { border-color: #21364F !important; }
+
+/* ── General text contrast ───────────────────────────────────────────── */
+.stMarkdown p, .stMarkdown li { color: #CBD5E1; }
+.stMarkdown h1, .stMarkdown h2, .stMarkdown h3 { color: #F1F5F9; }
+/* Make captions readable */
+.stCaption, [data-testid="stCaptionContainer"] { color: #94A3B8 !important; }
+/* Dataframe / table text */
+[data-testid="stDataFrame"] { color: #E2E8F0; }
 </style>
 """, unsafe_allow_html=True)
 
-PC  = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#06B6D4"]
+PC  = ["#38BDF8", "#34D399", "#FBBF24", "#F87171", "#A78BFA", "#2DD4BF"]
 TPL = "plotly_dark"
 
 
