@@ -42,9 +42,7 @@ st.markdown("""
 [data-testid="stAppViewBlockContainer"], [data-testid="stAppViewBlockContainer"] * {
     opacity: 1 !important;
 }
-/* Kill BaseWeb overlay/backdrop that dims on hover/focus */
-[data-baseweb="layer"], [data-baseweb="popover"],
-div[class*="Overlay"], div[class*="overlay"],
+/* Kill backdrop dim on hover/focus — do NOT target layer/popover (breaks dropdowns) */
 div[class*="backdrop"], div[class*="Backdrop"] {
     opacity: 0 !important;
     pointer-events: none !important;
