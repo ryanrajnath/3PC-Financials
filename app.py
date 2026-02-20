@@ -230,7 +230,7 @@ def _line(df, x, ys, names, title, pct_y=False):
     fig.add_hline(y=0, line_dash="dot", line_color="#444", line_width=1)
     return fig
 
-def _bar(df, x, ys, names, title):
+def _bar(df, x, ys, names, title, tickformat="$,.0f"):
     fig = go.Figure()
     for y, nm, c in zip(ys, names, PC):
         if y in df.columns:
@@ -238,7 +238,7 @@ def _bar(df, x, ys, names, title):
     fig.update_layout(template=TPL, title=title, barmode="stack", height=300,
                       margin=dict(l=10, r=10, t=36, b=10),
                       legend=dict(orientation="h", y=-0.25),
-                      yaxis=dict(tickformat="$,.0f"))
+                      yaxis=dict(tickformat=tickformat))
     return fig
 
 def _fmt_table(df, dollar_cols=None, pct_cols=None, highlight_neg=None,
@@ -1187,7 +1187,7 @@ with tab_brief:
     st.plotly_chart(_bar(mo, "period",
         ["inspectors_avg","team_leads_avg","n_opscoord","n_fieldsup","n_regionalmgr"],
         ["Inspectors","Team Leads","Ops Coordinators","Field Supervisors","Regional Managers"],
-        "Average Monthly Headcount"), use_container_width=True)
+        "Average Monthly Headcount", tickformat=",.0f"), use_container_width=True)
 
     st.divider()
 
