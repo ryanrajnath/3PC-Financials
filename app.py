@@ -423,24 +423,29 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+def _on_preset_change():
+    choice = st.session_state._preset_sel
+    if choice != "— load preset —":
+        p = PRESETS[choice]
+        st.session_state.assumptions        = p["assumptions"].copy()
+        st.session_state.headcount_plan     = p["headcount"].copy()
+        st.session_state.active_preset      = choice
+        st.session_state.preset_assumptions = p["assumptions"].copy()
+        run_and_store()
+
 ctrl1, ctrl2, ctrl3 = st.columns([3, 1, 2])
 with ctrl1:
     _preset_label = st.session_state.get("active_preset", "Base Case")
     if _is_modified():
         _preset_label = f"{_preset_label} (Modified)"
-    preset_choice = st.selectbox(
-        "Scenario", ["— load preset —"] + list(PRESETS.keys()),
+    st.selectbox(
+        "Scenario",
+        options=["— load preset —"] + list(PRESETS.keys()),
         index=0,
-        help=f"Active: {_preset_label}"
+        key="_preset_sel",
+        on_change=_on_preset_change,
+        help=f"Active: {_preset_label}",
     )
-    if preset_choice != "— load preset —":
-        p = PRESETS[preset_choice]
-        st.session_state.assumptions        = p["assumptions"].copy()
-        st.session_state.headcount_plan     = p["headcount"].copy()
-        st.session_state.active_preset      = preset_choice
-        st.session_state.preset_assumptions = p["assumptions"].copy()
-        run_and_store()
-        st.rerun()
     if _is_modified():
         st.caption(f"*{_preset_label}*")
 with ctrl2:
@@ -1068,9 +1073,17 @@ with tab_brief:
         ]
         for _mi, _mp, _ml, _mc in _milestones:
             if _mi is not None:
-                fig_loc.add_vline(x=_mp, line_dash="dot", line_color=_mc, line_width=1,
-                                  annotation_text=f"{_ml} ({_mp})", annotation_font_color=_mc,
-                                  annotation_position="top left")
+                fig_loc.add_shape(
+                    type="line", x0=_mp, x1=_mp, y0=0, y1=1,
+                    xref="x", yref="paper",
+                    line=dict(dash="dot", color=_mc, width=1)
+                )
+                fig_loc.add_annotation(
+                    x=_mp, y=0.98, xref="x", yref="paper",
+                    text=f"{_ml} ({_mp})", font=dict(color=_mc, size=10),
+                    showarrow=False, textangle=-90,
+                    xanchor="right", yanchor="top"
+                )
 
         fig_loc.update_layout(template=TPL, height=340, margin=dict(l=10,r=10,t=10,b=10),
                               legend=dict(orientation="h", y=-0.2), yaxis=dict(tickformat="$,.0f"))
@@ -1098,9 +1111,17 @@ with tab_brief:
         if len(_pos_rows):
             _cross_idx    = _pos_rows.index[0]
             _cross_period = _pos_rows.iloc[0]["period"]
-            fig_cf.add_vline(x=_cross_period, line_dash="dot", line_color=PC[1], line_width=1,
-                             annotation_text=f"Breakeven: {_cross_period}",
-                             annotation_font_color=PC[1], annotation_position="top left")
+            fig_cf.add_shape(
+                type="line", x0=_cross_period, x1=_cross_period, y0=0, y1=1,
+                xref="x", yref="paper",
+                line=dict(dash="dot", color=PC[1], width=1)
+            )
+            fig_cf.add_annotation(
+                x=_cross_period, y=0.98, xref="x", yref="paper",
+                text=f"Breakeven: {_cross_period}", font=dict(color=PC[1], size=10),
+                showarrow=False, textangle=-90,
+                xanchor="right", yanchor="top"
+            )
 
         fig_cf.update_layout(
             template=TPL, height=340, margin=dict(l=10, r=10, t=10, b=10),
@@ -1835,7 +1856,17 @@ with tab_detail:
                 fig_b1 = go.Figure(go.Scatter(x=burd_df["pct"], y=burd_df["ebitda_ai_margin"], mode="lines+markers", line=dict(color=PC[1], width=2), marker=dict(size=7)))
                 fig_b1.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Margin vs. Burden Rate", xaxis_title="Burden (%)", yaxis=dict(tickformat=".1%"))
                 fig_b1.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
-                fig_b1.add_vline(x=35, line_dash="dot", line_color="#F59E0B", annotation_text="35% caution", annotation_font_color="#F59E0B")
+                fig_b1.add_shape(
+                    type="line", x0=35, x1=35, y0=0, y1=1,
+                    xref="x", yref="paper",
+                    line=dict(dash="dot", color="#F59E0B", width=1)
+                )
+                fig_b1.add_annotation(
+                    x=35, y=0.98, xref="x", yref="paper",
+                    text="35% caution", font=dict(color="#F59E0B", size=10),
+                    showarrow=False, textangle=-90,
+                    xanchor="right", yanchor="top"
+                )
                 st.plotly_chart(fig_b1, use_container_width=True)
             with c2:
                 fig_b2 = go.Figure(go.Scatter(x=burd_df["pct"], y=burd_df["peak_loc"], mode="lines+markers", line=dict(color=PC[3], width=2), marker=dict(size=7)))
@@ -1884,7 +1915,17 @@ with tab_detail:
                     wage_df = run_sensitivity(a, hc, "inspector_wage", wage_vals)
                 fig_w = go.Figure()
                 fig_w.add_trace(go.Scatter(x=wage_df["value"], y=wage_df["ebitda_ai_margin"], mode="lines+markers", name="Net Margin", line=dict(color=PC[2], width=2), marker=dict(size=7)))
-                fig_w.add_vline(x=base_wage, line_dash="dot", line_color="#94A3B8", annotation_text="Current", annotation_font_color="#94A3B8")
+                fig_w.add_shape(
+                    type="line", x0=base_wage, x1=base_wage, y0=0, y1=1,
+                    xref="x", yref="paper",
+                    line=dict(dash="dot", color="#94A3B8", width=1)
+                )
+                fig_w.add_annotation(
+                    x=base_wage, y=0.98, xref="x", yref="paper",
+                    text="Current", font=dict(color="#94A3B8", size=10),
+                    showarrow=False, textangle=-90,
+                    xanchor="right", yanchor="top"
+                )
                 fig_w.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
                 fig_w.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Margin vs. Inspector Wage", xaxis_title="Wage ($/hr)", yaxis=dict(tickformat=".1%"))
                 st.plotly_chart(fig_w, use_container_width=True)
@@ -1914,7 +1955,17 @@ with tab_detail:
                 fig_to = go.Figure()
                 fig_to.add_trace(go.Scatter(x=to_df["pct_lbl"], y=to_df["ebitda_ai"], mode="lines+markers", name="Net Income", line=dict(color=PC[4], width=2), marker=dict(size=7)))
                 fig_to.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
-                fig_to.add_vline(x=100, line_dash="dot", line_color="#94A3B8", annotation_text="100% (1x annual)", annotation_font_color="#94A3B8")
+                fig_to.add_shape(
+                    type="line", x0=100, x1=100, y0=0, y1=1,
+                    xref="x", yref="paper",
+                    line=dict(dash="dot", color="#94A3B8", width=1)
+                )
+                fig_to.add_annotation(
+                    x=100, y=0.98, xref="x", yref="paper",
+                    text="100% (1x annual)", font=dict(color="#94A3B8", size=10),
+                    showarrow=False, textangle=-90,
+                    xanchor="right", yanchor="top"
+                )
                 fig_to.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Income vs. Inspector Turnover", xaxis_title="Annual Turnover Rate (%)", yaxis=dict(tickformat="$,.0f"))
                 st.plotly_chart(fig_to, use_container_width=True)
                 _fmt_table(to_df[["pct_lbl","ebitda_ai_margin","ebitda_ai"]].rename(columns={"pct_lbl":"Turnover (%)","ebitda_ai_margin":"Net Margin","ebitda_ai":"Net Income"}), dollar_cols=["Net Income"], pct_cols=["Net Margin"], highlight_neg="Net Income")
