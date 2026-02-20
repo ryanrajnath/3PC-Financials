@@ -295,11 +295,21 @@ with st.sidebar:
         help="Standard work hours per inspector per week, not counting overtime. Typically 40."
     )
 
+    a["lead_bill_premium"] = st.number_input(
+        "Team Lead Bill Rate Multiplier", min_value=1.0, max_value=2.0,
+        value=float(a.get("lead_bill_premium", 1.0)), step=0.05, format="%.2f",
+        help="Team leads are billed at this multiple of the regular inspector rate. "
+             "1.0 = same rate as inspectors (most common). 1.1 = 10% premium for supervisory labor."
+    )
+
     # Live margin preview
     _ot_bill    = a["st_bill_rate"] * a["ot_bill_premium"]
-    _wk_rev     = a["st_hours"] * a["st_bill_rate"] + a["ot_hours"] * _ot_bill
+    _util       = float(a.get("inspector_utilization", 1.0))
+    _wk_rev     = _util * (a["st_hours"] * a["st_bill_rate"] + a["ot_hours"] * _ot_bill)
+    _ob_wk      = float(a.get("inspector_onboarding_cost", 500)) / max(1, int(a.get("inspector_avg_tenure_weeks", 26)))
     _wk_cost    = (a["st_hours"] * a["inspector_wage"] * (1 + a["burden"]) +
-                   a["ot_hours"] * a["inspector_wage"] * a["ot_pay_multiplier"] * (1 + a["burden"]))
+                   a["ot_hours"] * a["inspector_wage"] * a["ot_pay_multiplier"] * (1 + a["burden"]) +
+                   _ob_wk)
     _margin     = (_wk_rev - _wk_cost) / _wk_rev if _wk_rev else 0
     st.caption(f"Per inspector/week: **${_wk_rev:,.0f} revenue** · **${_wk_cost:,.0f} cost** · **{_margin:.0%} margin**")
 
@@ -324,6 +334,30 @@ with st.sidebar:
         value=float(a["ot_pay_multiplier"]), step=0.25, format="%.2f",
         help=f"Inspectors earn this multiple of base pay for overtime. At {a['ot_pay_multiplier']}×: ${a['inspector_wage'] * a['ot_pay_multiplier']:.2f}/hr OT pay."
     )
+    _util_pct = st.slider(
+        "Inspector Utilization Rate (%)", min_value=50, max_value=100,
+        value=int(round(float(a.get("inspector_utilization", 1.0)) * 100)), step=1, format="%d%%",
+        help="Percentage of scheduled inspector hours that are actually billed to the client. "
+             "100% assumes every scheduled hour is productive and billable. In practice, "
+             "travel days, site startups, and between-project gaps reduce this — 85–95% is typical. "
+             "Note: you still pay inspectors for all scheduled hours; only revenue is reduced."
+    )
+    a["inspector_utilization"] = _util_pct / 100.0
+    a["inspector_onboarding_cost"] = st.number_input(
+        "Inspector Onboarding Cost per Hire ($)", min_value=0.0,
+        value=float(a.get("inspector_onboarding_cost", 500.0)), step=50., format="%.0f",
+        help="One-time cost each time you hire a new inspector: background check (~$150), "
+             "drug screen (~$80), PPE, and orientation (~$270). Amortized weekly over expected tenure."
+    )
+    a["inspector_avg_tenure_weeks"] = st.number_input(
+        "Average Inspector Tenure (weeks)", min_value=4, max_value=260,
+        value=int(a.get("inspector_avg_tenure_weeks", 26)), step=4, format="%d",
+        help="How long the average inspector stays before leaving. 26 weeks (~6 months) is typical "
+             "for third-party containment — high-turnover, physically demanding work. "
+             "Shorter tenure = higher amortized onboarding cost per week."
+    )
+    _ob_per_wk = a["inspector_onboarding_cost"] / max(1, a["inspector_avg_tenure_weeks"])
+    st.caption(f"Onboarding adds **${_ob_per_wk:.2f}/inspector/week** to labor cost")
 
     st.divider()
 
@@ -355,6 +389,21 @@ with st.sidebar:
 
     # ── Customer Payment Terms ────────────────────────────────────────────────
     section("Customer Payment Terms")
+    _billing_options = ["Monthly (standard)", "Weekly (faster cash flow)"]
+    _billing_idx = 0 if a.get("billing_frequency", "monthly") == "monthly" else 1
+    _billing_sel = st.radio(
+        "Invoice Frequency",
+        _billing_options,
+        index=_billing_idx,
+        horizontal=True,
+        help=(
+            "**Monthly:** One invoice sent at month-end for all work that month. Standard practice but "
+            "means your credit line must fund 4–5 weeks of payroll before any cash comes in.\n\n"
+            "**Weekly:** Invoice every Friday for that week's work. Collections arrive ~8–9 weeks sooner "
+            "on average, reducing peak credit line need by $200K–$400K depending on headcount."
+        )
+    )
+    a["billing_frequency"] = "monthly" if _billing_sel == "Monthly (standard)" else "weekly"
     a["net_days"] = st.slider(
         "Days to Payment After Month-End Invoice",
         min_value=15, max_value=180, value=int(a["net_days"]), step=5,
@@ -569,6 +618,32 @@ with st.sidebar:
                         (a["corp_alloc_fixed"] if a["corp_alloc_mode"] == "fixed" else 0))
         st.caption(f"Total fixed overhead: **${_total_fixed:,.0f}/month**")
 
+    # ── Tax Rates (provision only) ────────────────────────────────────────────
+    with st.expander("Tax Rates"):
+        st.caption(
+            "OpSource is a pass-through entity (S-corp or LLC) — income taxes are paid at the "
+            "owner level, not the division level. **Pre-tax net income is the correct metric for "
+            "evaluating this division's performance.** The tax provision below is shown for "
+            "reference only, to estimate the owner's approximate tax obligation on division profits. "
+            "Verify the applicable rate with your CPA."
+        )
+        _sc_pct = st.slider(
+            "SC State Tax Rate (%)", min_value=0, max_value=15,
+            value=int(round(float(a.get("sc_state_tax_rate", 0.059)) * 100 * 10) / 10),
+            step=1, format="%d%%",
+            help="South Carolina corporate/pass-through income tax rate. SC's rate has been reducing annually — 5.9% applies to 2026. Verify with your CPA."
+        )
+        a["sc_state_tax_rate"] = _sc_pct / 100.0
+        _fed_pct = st.slider(
+            "Federal Corporate Tax Rate (%)", min_value=0, max_value=40,
+            value=int(round(float(a.get("federal_tax_rate", 0.21)) * 100)),
+            step=1, format="%d%%",
+            help="Federal corporate income tax rate. Currently 21% for C-corps. If OpSource is an LLC or S-corp, use the applicable individual rate instead."
+        )
+        a["federal_tax_rate"] = _fed_pct / 100.0
+        _combined = a["sc_state_tax_rate"] + a["federal_tax_rate"]
+        st.caption(f"Combined rate: **{_combined:.1%}**  ·  On $100K net income: **${_combined * 100_000:,.0f} in taxes**")
+
     st.session_state.assumptions = a
 
 
@@ -714,6 +789,52 @@ with tab_dash:
             "Average Monthly Headcount"), use_container_width=True)
 
     st.divider()
+
+    # Payroll Float / Working Capital Gap
+    section("Payroll Float — Cash Out vs. Cash In")
+    st.caption(
+        "Your credit line bridges the gap between when you pay employees (weekly) and when "
+        "customers pay their invoices. The chart below shows weekly cash obligations vs. "
+        "cash coming in — the difference is your working capital requirement."
+    )
+    wf_cols = ["payroll_cash_out", "salaried_wk", "overhead_wk", "collections", "loc_end"]
+    if all(c in wdf.columns for c in ["payroll_cash_out", "salaried_wk", "overhead_wk"]):
+        wdf_pf = wdf.copy()
+        wdf_pf["total_cash_out"] = wdf_pf["payroll_cash_out"] + wdf_pf["salaried_wk"] + wdf_pf["overhead_wk"]
+
+        fig_pf = go.Figure()
+        fig_pf.add_trace(go.Bar(
+            x=wdf_pf["week_start"].astype(str), y=wdf_pf["total_cash_out"],
+            name="Cash Out (Payroll + Overhead)", marker_color=PC[3], opacity=0.75
+        ))
+        fig_pf.add_trace(go.Bar(
+            x=wdf_pf["week_start"].astype(str), y=wdf_pf["collections"],
+            name="Cash In (Customer Payments)", marker_color=PC[1], opacity=0.75
+        ))
+        fig_pf.add_trace(go.Scatter(
+            x=wdf_pf["week_start"].astype(str), y=wdf_pf["loc_end"],
+            name="Credit Line Balance", mode="lines",
+            line=dict(color=PC[2], width=2, dash="dot"), yaxis="y2"
+        ))
+        fig_pf.update_layout(
+            template=TPL, height=320, barmode="overlay",
+            margin=dict(l=10, r=10, t=10, b=10),
+            legend=dict(orientation="h", y=-0.25),
+            yaxis=dict(tickformat="$,.0f", title="Weekly Cash ($)"),
+            yaxis2=dict(tickformat="$,.0f", title="Credit Line ($)",
+                        overlaying="y", side="right", showgrid=False),
+        )
+        fig_pf.add_hline(y=0, line_dash="dot", line_color="#444", line_width=1)
+        st.plotly_chart(fig_pf, use_container_width=True)
+
+        # Working capital metrics
+        pf1, pf2, pf3 = st.columns(3)
+        peak_weekly_out = wdf_pf["total_cash_out"].max()
+        avg_weekly_gap  = (wdf_pf["total_cash_out"] - wdf_pf["collections"]).mean()
+        peak_loc_val    = wdf_pf["loc_end"].max()
+        kpi(pf1, "Peak Weekly Cash Out",   fmt_dollar(peak_weekly_out), "payroll + overhead")
+        kpi(pf2, "Avg Weekly Funding Gap", fmt_dollar(avg_weekly_gap),  "cash out minus cash in")
+        kpi(pf3, "Peak Credit Line Draw",  fmt_dollar(peak_loc_val),    "max balance outstanding")
 
     # Break-even
     section("Break-Even Calculator")
@@ -901,6 +1022,11 @@ with tab_sum:
 
     def _pct(v): return v / tot_rev if tot_rev else 0.0
 
+    tot_sc_tax  = mo_s["sc_tax"].sum()  if "sc_tax"  in mo_s.columns else 0.0
+    tot_fed_tax = mo_s["federal_tax"].sum() if "federal_tax" in mo_s.columns else 0.0
+    tot_tax     = tot_sc_tax + tot_fed_tax
+    tot_ni_at   = mo_s["net_income_after_tax"].sum() if "net_income_after_tax" in mo_s.columns else tot_ni - tot_tax
+
     is_df = pd.DataFrame({
         "Line Item": [
             "Revenue", "",
@@ -911,29 +1037,34 @@ with tab_sum:
             "Total Expenses", "",
             "Operating Profit (EBITDA)",
             "  Credit Line Interest",
-            "Net Income",
+            "Net Income (pre-tax)", "",
+            f"  SC State Tax ({a.get('sc_state_tax_rate', 0.059):.1%})",
+            f"  Federal Tax ({a.get('federal_tax_rate', 0.21):.0%})",
+            "Net Income (after tax)",
         ],
         "Amount": [
             tot_rev, None,
             tot_hl, tot_sal, tot_to, tot_fovhd,
             tot_exp, None,
-            tot_eb, -tot_int, tot_ni,
+            tot_eb, -tot_int, tot_ni, None,
+            -tot_sc_tax, -tot_fed_tax, tot_ni_at,
         ],
         "% of Revenue": [
             1.0, None,
             _pct(tot_hl), _pct(tot_sal), _pct(tot_to), _pct(tot_fovhd),
             _pct(tot_exp), None,
-            _pct(tot_eb), -_pct(tot_int), _pct(tot_ni),
+            _pct(tot_eb), -_pct(tot_int), _pct(tot_ni), None,
+            -_pct(tot_sc_tax), -_pct(tot_fed_tax), _pct(tot_ni_at),
         ],
     })
 
     def _is_style(row):
         lbl = row["Line Item"]
-        if lbl in ("Revenue", "Net Income"):
+        if lbl in ("Revenue", "Net Income (after tax)"):
             return ["font-weight:bold; color:#52D68A"] * len(row)
         if lbl == "Total Expenses":
             return ["font-weight:bold; color:#E05252"] * len(row)
-        if lbl == "Operating Profit (EBITDA)":
+        if lbl in ("Operating Profit (EBITDA)", "Net Income (pre-tax)"):
             return ["font-weight:bold"] * len(row)
         return [""] * len(row)
 
@@ -949,6 +1080,11 @@ with tab_sum:
     # Annual P&L
     section("Year-by-Year Profit & Loss")
     _to_col = {"turnover_cost": ("turnover_cost", "sum")} if "turnover_cost" in mo_full.columns else {}
+    _tax_cols = {}
+    if "sc_tax" in mo_full.columns:
+        _tax_cols["sc_tax"]               = ("sc_tax",               "sum")
+        _tax_cols["federal_tax"]           = ("federal_tax",          "sum")
+        _tax_cols["net_income_after_tax"]  = ("net_income_after_tax", "sum")
     annual = mo_full.groupby("year").agg(**{
         "revenue":               ("revenue",               "sum"),
         "hourly_labor":          ("hourly_labor",           "sum"),
@@ -960,24 +1096,44 @@ with tab_sum:
         "peak_loc":              ("loc_end",                "max"),
         "avg_inspectors":        ("inspectors_avg",         "mean"),
         **_to_col,
+        **_tax_cols,
     }).reset_index()
-    annual["total_expenses"]   = annual["hourly_labor"] + annual["salaried_cost"] + annual["overhead"]
-    annual["net_margin"]       = np.where(annual["revenue"] > 0, annual["ebitda_after_interest"] / annual["revenue"], 0)
-    annual["oper_margin"]      = np.where(annual["revenue"] > 0, annual["ebitda"] / annual["revenue"], 0)
-    annual["year_label"]       = annual["year"].apply(lambda y: f"Year {y - annual['year'].min() + 1}  ({y})")
+    annual["total_expenses"] = annual["hourly_labor"] + annual["salaried_cost"] + annual["overhead"]
+    annual["oper_margin"]    = np.where(annual["revenue"] > 0, annual["ebitda"] / annual["revenue"], 0)
+    annual["pretax_margin"]  = np.where(annual["revenue"] > 0, annual["ebitda_after_interest"] / annual["revenue"], 0)
+    annual["year_label"]     = annual["year"].apply(lambda y: f"Year {y - annual['year'].min() + 1}  ({y})")
+    has_tax = "net_income_after_tax" in annual.columns
 
-    ann_disp = annual[["year_label","avg_inspectors","revenue","total_expenses",
-                        "ebitda","oper_margin","interest","ebitda_after_interest","net_margin","peak_loc"]].rename(columns={
-        "year_label": "Year", "avg_inspectors": "Avg Inspectors",
-        "revenue": "Revenue", "total_expenses": "Total Expenses",
-        "ebitda": "Oper. Profit", "oper_margin": "Oper. %",
-        "interest": "Interest", "ebitda_after_interest": "Net Income",
-        "net_margin": "Net %", "peak_loc": "Peak Credit Line"
-    })
-    _fmt_table(ann_disp,
-        dollar_cols=["Revenue","Total Expenses","Oper. Profit","Interest","Net Income","Peak Credit Line"],
-        pct_cols=["Oper. %","Net %"],
-        highlight_neg="Net Income")
+    if has_tax:
+        annual["net_margin_at"] = np.where(annual["revenue"] > 0,
+                                            annual["net_income_after_tax"] / annual["revenue"], 0)
+        ann_disp = annual[["year_label","avg_inspectors","revenue","total_expenses",
+                            "ebitda","oper_margin","interest","ebitda_after_interest",
+                            "pretax_margin","net_income_after_tax","net_margin_at","peak_loc"]].rename(columns={
+            "year_label": "Year", "avg_inspectors": "Avg Inspectors",
+            "revenue": "Revenue", "total_expenses": "Total Expenses",
+            "ebitda": "Oper. Profit", "oper_margin": "Oper. %",
+            "interest": "Interest", "ebitda_after_interest": "Pre-Tax Income",
+            "pretax_margin": "Pre-Tax %", "net_income_after_tax": "Net Income",
+            "net_margin_at": "Net %", "peak_loc": "Peak Credit Line",
+        })
+        _fmt_table(ann_disp,
+            dollar_cols=["Revenue","Total Expenses","Oper. Profit","Interest","Pre-Tax Income","Net Income","Peak Credit Line"],
+            pct_cols=["Oper. %","Pre-Tax %","Net %"],
+            highlight_neg="Net Income")
+    else:
+        ann_disp = annual[["year_label","avg_inspectors","revenue","total_expenses",
+                            "ebitda","oper_margin","interest","ebitda_after_interest","pretax_margin","peak_loc"]].rename(columns={
+            "year_label": "Year", "avg_inspectors": "Avg Inspectors",
+            "revenue": "Revenue", "total_expenses": "Total Expenses",
+            "ebitda": "Oper. Profit", "oper_margin": "Oper. %",
+            "interest": "Interest", "ebitda_after_interest": "Net Income",
+            "pretax_margin": "Net %", "peak_loc": "Peak Credit Line",
+        })
+        _fmt_table(ann_disp,
+            dollar_cols=["Revenue","Total Expenses","Oper. Profit","Interest","Net Income","Peak Credit Line"],
+            pct_cols=["Oper. %","Net %"],
+            highlight_neg="Net Income")
 
     st.divider()
 

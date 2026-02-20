@@ -60,6 +60,7 @@ def default_assumptions() -> dict:
         "gm_start_month": 1,   # 1-based model month when GM activates
         "gm_ramp_months": 0,   # months at 0.5 FTE before going to 1.0
         # AR / collections
+        "billing_frequency": "monthly",   # "monthly" | "weekly"
         "net_days": 60,
         # LOC
         "apr": 0.085,
@@ -86,6 +87,20 @@ def default_assumptions() -> dict:
         "opscoord_replace_cost":    8_000.0,   # ~12% of $65K base
         "fieldsup_replace_cost":   12_000.0,   # ~17% of $70K base
         "regionalmgr_replace_cost":25_000.0,   # ~23% of $110K base (may use recruiter)
+        # Inspector onboarding cost (amortized into weekly labor cost per the formula:
+        # Total Cost = Wage × (1 + Burden%) + Onboarding_Cost_per_week)
+        # One-time cost per new inspector hire: background check, drug screen, PPE, orientation
+        "inspector_onboarding_cost":  500.0,   # $ per hire — background check ~$150, drug screen ~$80, orientation ~$270
+        "inspector_avg_tenure_weeks": 26,       # avg weeks before inspector turns over (~6 months; containment industry high-turnover)
+        # Inspector utilization rate — fraction of scheduled hours actually billed to client
+        # (accounts for travel days, site startup, between-project gaps)
+        "inspector_utilization":  1.0,          # 1.0 = 100% billed; 0.90 = 10% unbillable time
+        # Team lead bill rate premium (multiplier on inspector bill rate)
+        # 1.0 = same rate as inspectors; 1.1 = 10% premium for supervisory labor
+        "lead_bill_premium": 1.0,
+        # Tax rates — for after-tax net income reporting (provision only, not cash tax modeling)
+        "sc_state_tax_rate":  0.059,  # South Carolina 2026 corporate/pass-through rate
+        "federal_tax_rate":   0.21,   # Federal corporate rate
     }
 
 
@@ -125,10 +140,17 @@ def run_model(assumptions: dict, headcount_plan: list):
     ot_mult   = float(a["ot_pay_multiplier"])
     burden    = float(a["burden"])
 
-    tl_ratio  = int(a["team_lead_ratio"])
-    lead_wage = float(a["lead_wage"])
-    lead_st   = int(a["lead_st_hours"])
-    lead_ot   = int(a["lead_ot_hours"])
+    tl_ratio       = int(a["team_lead_ratio"])
+    lead_wage      = float(a["lead_wage"])
+    lead_st        = int(a["lead_st_hours"])
+    lead_ot        = int(a["lead_ot_hours"])
+    lead_bill_prem = float(a.get("lead_bill_premium", 1.0))
+
+    # Inspector utilization & onboarding amortization
+    utilization         = float(a.get("inspector_utilization", 1.0))
+    onboard_cost        = float(a.get("inspector_onboarding_cost", 500.0))
+    avg_tenure_wks      = max(1, int(a.get("inspector_avg_tenure_weeks", 26)))
+    onboard_wk_per_insp = onboard_cost / avg_tenure_wks   # $ per inspector per week
 
     gm_loaded   = float(a["gm_loaded_annual"])
     ops_base    = float(a["opscoord_base"])
@@ -155,6 +177,7 @@ def run_model(assumptions: dict, headcount_plan: list):
     gm_start  = int(a.get("gm_start_month", 1))
     gm_ramp   = int(a.get("gm_ramp_months", 0))
 
+    billing_freq = a.get("billing_frequency", "monthly")   # "monthly" | "weekly"
     net_days     = int(a["net_days"])
     apr          = float(a["apr"])
     max_loc      = float(a["max_loc"])
@@ -229,29 +252,49 @@ def run_model(assumptions: dict, headcount_plan: list):
     df["team_leads"] = df["inspectors"].apply(
         lambda x: ceil(x / tl_ratio) if x > 0 else 0
     )
-    df["n_opscoord"]   = df["inspectors"].apply(lambda x: ceil(x / ops_span)  if x > 0 else 0)
-    df["n_fieldsup"]   = df["inspectors"].apply(lambda x: ceil(x / fsup_span) if x > 0 else 0)
-    df["n_regionalmgr"]= df["inspectors"].apply(lambda x: ceil(x / rmgr_span) if x > 0 else 0)
+    # Management headcount: stays on payroll during inspector gaps.
+    # Carry forward the last active inspector count so management cost persists.
+    _mgmt_basis = []
+    _last_active = 0
+    for _insp in df["inspectors"]:
+        if _insp > 0:
+            _last_active = int(_insp)
+        _mgmt_basis.append(_last_active)
+    df["mgmt_insp_basis"] = _mgmt_basis
+
+    df["n_opscoord"]    = df["mgmt_insp_basis"].apply(lambda x: ceil(x / ops_span)  if x > 0 else 0)
+    df["n_fieldsup"]    = df["mgmt_insp_basis"].apply(lambda x: ceil(x / fsup_span) if x > 0 else 0)
+    df["n_regionalmgr"] = df["mgmt_insp_basis"].apply(lambda x: ceil(x / rmgr_span) if x > 0 else 0)
 
     # --- Revenue (weekly, accrual) ------------------------------------
-    df["insp_st_hrs"] = df["inspectors"] * st_hrs
-    df["insp_ot_hrs"] = df["inspectors"] * ot_hrs
-    df["lead_st_hrs"] = df["team_leads"] * lead_st
-    df["lead_ot_hrs"] = df["team_leads"] * lead_ot
+    # Scheduled hours × utilization rate = billable hours
+    df["insp_st_hrs"] = df["inspectors"] * st_hrs * utilization
+    df["insp_ot_hrs"] = df["inspectors"] * ot_hrs * utilization
+    df["lead_st_hrs"] = df["team_leads"] * lead_st * utilization
+    df["lead_ot_hrs"] = df["team_leads"] * lead_ot * utilization
+
+    # Lead bill rate can carry a premium over inspector bill rate
+    lead_bill_st = st_bill * lead_bill_prem
+    lead_bill_ot = ot_bill * lead_bill_prem
 
     df["insp_rev_st"] = df["insp_st_hrs"] * st_bill
     df["insp_rev_ot"] = df["insp_ot_hrs"] * ot_bill
-    df["lead_rev_st"] = df["lead_st_hrs"] * st_bill
-    df["lead_rev_ot"] = df["lead_ot_hrs"] * ot_bill
+    df["lead_rev_st"] = df["lead_st_hrs"] * lead_bill_st
+    df["lead_rev_ot"] = df["lead_ot_hrs"] * lead_bill_ot
     df["revenue_wk"]  = df["insp_rev_st"] + df["insp_rev_ot"] + df["lead_rev_st"] + df["lead_rev_ot"]
 
     # --- Labor cost (weekly, accrual) ---------------------------------
-    df["insp_labor_st"] = df["insp_st_hrs"] * insp_wage * (1 + burden)
-    df["insp_labor_ot"] = df["insp_ot_hrs"] * insp_wage * ot_mult * (1 + burden)
-    df["lead_labor_st"] = df["lead_st_hrs"] * lead_wage * (1 + burden)
-    df["lead_labor_ot"] = df["lead_ot_hrs"] * lead_wage * ot_mult * (1 + burden)
+    # Formula: Total Cost = Wage × hours × (1 + Burden%) + Onboarding_Cost_per_week
+    # Inspector hours paid on scheduled hours (not just billable), so no utilization adjustment on cost
+    df["insp_labor_st"]   = df["inspectors"] * st_hrs * insp_wage * (1 + burden)
+    df["insp_labor_ot"]   = df["inspectors"] * ot_hrs * insp_wage * ot_mult * (1 + burden)
+    df["lead_labor_st"]   = df["team_leads"] * lead_st * lead_wage * (1 + burden)
+    df["lead_labor_ot"]   = df["team_leads"] * lead_ot * lead_wage * ot_mult * (1 + burden)
+    # Onboarding amortization: spread one-time hire cost over expected tenure
+    df["onboarding_cost_wk"] = df["inspectors"] * onboard_wk_per_insp
     df["hourly_labor"]  = (df["insp_labor_st"] + df["insp_labor_ot"] +
-                           df["lead_labor_st"] + df["lead_labor_ot"])
+                           df["lead_labor_st"] + df["lead_labor_ot"] +
+                           df["onboarding_cost_wk"])
 
     # --- Salaried cost (weekly) ---------------------------------------
     df["gm_cost_wk"]    = df["gm_fte"]        * gm_loaded   / 52
@@ -286,25 +329,38 @@ def run_model(assumptions: dict, headcount_plan: list):
                        - df["overhead_wk"])
 
     # --- Statement invoices & collections ----------------------------
-    mo_rev      = df.groupby("month_idx")["revenue_wk"].sum()
-    mo_end_date = df.groupby("month_idx")["month_end_date"].first()
-
     df["statement_amt"] = 0.0
     df["collections"]   = 0.0
 
-    for m_idx, rev in mo_rev.items():
-        if rev == 0:
-            continue
-        # Statement: placed in the last week of the month
-        mask_stmt = (df["month_idx"] == m_idx) & df["is_month_end"]
-        df.loc[mask_stmt, "statement_amt"] = rev
+    if billing_freq == "weekly":
+        # Each week's revenue is invoiced at week-end; collected net_days after week_end.
+        for i, row in df.iterrows():
+            rev = float(row["revenue_wk"])
+            if rev == 0:
+                continue
+            df.at[i, "statement_amt"] = rev
+            collect_date = row["week_end"] + timedelta(days=net_days)
+            mask_coll = (df["week_start"] <= collect_date) & (df["week_end"] >= collect_date)
+            if mask_coll.any():
+                df.loc[mask_coll, "collections"] += rev
+    else:
+        # Monthly: batch all revenue into a month-end invoice; collected net_days after month-end.
+        mo_rev      = df.groupby("month_idx")["revenue_wk"].sum()
+        mo_end_date = df.groupby("month_idx")["month_end_date"].first()
 
-        # Collection: lump sum NetDays after month-end statement date
-        stmt_date    = mo_end_date[m_idx]
-        collect_date = stmt_date + timedelta(days=net_days)
-        mask_coll = (df["week_start"] <= collect_date) & (df["week_end"] >= collect_date)
-        if mask_coll.any():
-            df.loc[mask_coll, "collections"] += rev
+        for m_idx, rev in mo_rev.items():
+            if rev == 0:
+                continue
+            # Statement placed in the last week of the month
+            mask_stmt = (df["month_idx"] == m_idx) & df["is_month_end"]
+            df.loc[mask_stmt, "statement_amt"] = rev
+
+            # Collection: lump sum net_days after month-end date
+            stmt_date    = mo_end_date[m_idx]
+            collect_date = stmt_date + timedelta(days=net_days)
+            mask_coll = (df["week_start"] <= collect_date) & (df["week_end"] >= collect_date)
+            if mask_coll.any():
+                df.loc[mask_coll, "collections"] += rev
 
     # --- Sequential cash / LOC model ---------------------------------
     cash_beg  = np.zeros(n)
@@ -415,7 +471,7 @@ def run_model(assumptions: dict, headcount_plan: list):
                        - df["cash_end"]).abs()
 
     # --- Build monthly & quarterly -----------------------------------
-    monthly_df   = _build_monthly(df)
+    monthly_df   = _build_monthly(df, assumptions)
     quarterly_df = _build_quarterly(monthly_df)
 
     return df, monthly_df, quarterly_df
@@ -425,7 +481,7 @@ def run_model(assumptions: dict, headcount_plan: list):
 # Monthly rollup
 # ---------------------------------------------------------------------------
 
-def _build_monthly(df: pd.DataFrame) -> pd.DataFrame:
+def _build_monthly(df: pd.DataFrame, assumptions: dict) -> pd.DataFrame:
     agg = (df.groupby("month_idx")
              .agg(
                  year            =("year",             "first"),
@@ -463,6 +519,16 @@ def _build_monthly(df: pd.DataFrame) -> pd.DataFrame:
                                            agg["ebitda"] / agg["revenue"], 0.0)
     agg["ebitda_ai_margin"]     = np.where(agg["revenue"] > 0,
                                            agg["ebitda_after_interest"] / agg["revenue"], 0.0)
+    # Tax provision (applied only on positive pre-tax income; losses = $0 tax)
+    sc_rate  = float(assumptions.get("sc_state_tax_rate",  0.059))
+    fed_rate = float(assumptions.get("federal_tax_rate",   0.21))
+    pre_tax  = agg["ebitda_after_interest"].clip(lower=0)
+    agg["sc_tax"]               = pre_tax * sc_rate
+    agg["federal_tax"]          = pre_tax * fed_rate
+    agg["total_tax"]            = agg["sc_tax"] + agg["federal_tax"]
+    agg["net_income_after_tax"] = agg["ebitda_after_interest"] - agg["total_tax"]
+    agg["net_margin_after_tax"] = np.where(agg["revenue"] > 0,
+                                           agg["net_income_after_tax"] / agg["revenue"], 0.0)
     agg["peak_loc_to_date"]     = agg["loc_end"].cummax()
     agg["period"]               = agg.apply(lambda r: f"{r['year']}-{r['month']:02d}", axis=1)
     return agg
