@@ -965,18 +965,19 @@ with tab_dash:
     if all(c in wdf.columns for c in ["payroll_cash_out", "salaried_wk", "overhead_wk"]):
         wdf_pf = wdf.copy()
         wdf_pf["total_cash_out"] = wdf_pf["payroll_cash_out"] + wdf_pf["salaried_wk"] + wdf_pf["overhead_wk"]
+        wdf_pf["week_label"] = wdf_pf["week_num"].apply(lambda n: f"Wk{int(n)+1}")
 
         fig_pf = go.Figure()
         fig_pf.add_trace(go.Bar(
-            x=wdf_pf["week_start"].astype(str), y=wdf_pf["total_cash_out"],
+            x=wdf_pf["week_label"], y=wdf_pf["total_cash_out"],
             name="Cash Out (Payroll + Overhead)", marker_color=PC[3], opacity=0.75
         ))
         fig_pf.add_trace(go.Bar(
-            x=wdf_pf["week_start"].astype(str), y=wdf_pf["collections"],
+            x=wdf_pf["week_label"], y=wdf_pf["collections"],
             name="Cash In (Customer Payments)", marker_color=PC[1], opacity=0.75
         ))
         fig_pf.add_trace(go.Scatter(
-            x=wdf_pf["week_start"].astype(str), y=wdf_pf["loc_end"],
+            x=wdf_pf["week_label"], y=wdf_pf["loc_end"],
             name="Credit Line Balance", mode="lines",
             line=dict(color=PC[2], width=2, dash="dot"), yaxis="y2"
         ))
@@ -1166,11 +1167,7 @@ with tab_hc:
         st.session_state.headcount_plan = hc
         st.rerun()
 
-    month_labels = []
-    for i in range(120):
-        yr = a_start.year  + (a_start.month - 1 + i) // 12
-        mo = (a_start.month - 1 + i) % 12 + 1
-        month_labels.append(f"{yr}-{mo:02d}")
+    month_labels = [f"M{i+1}" for i in range(120)]
 
     section("Preview")
     lo_hc, hi_hc = st.select_slider("Show months", options=list(range(1, 121)), value=(1, 24), key="hc_rng")
