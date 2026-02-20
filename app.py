@@ -314,7 +314,7 @@ PRESETS = {
         "headcount": _build_hc([(1,2,25),(3,4,50),(5,6,75),(7,9,100),
                                  (10,12,125),(13,24,150),(25,60,175)]),
     },
-    "Enterprise Scale-Up": {
+    "25–500 Employees over 60 Months": {
         "assumptions": {**default_assumptions(),
             # Billing — at scale, slightly above base rate; OT stays meaningful
             "st_bill_rate": 42.0,
