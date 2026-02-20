@@ -1,10 +1,9 @@
 """
 Containment Division Calculator — OpSource
-Dark professional UI with range filtering
 """
 from __future__ import annotations
-import warnings
-from datetime import date
+import hashlib, json, warnings
+from datetime import date, datetime
 from math import ceil
 
 import numpy as np
@@ -21,1046 +20,932 @@ from export import build_excel
 
 warnings.filterwarnings("ignore")
 
-# ── Config ──────────────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="Containment Division Calculator",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
+st.set_page_config(page_title="Containment Division Calculator", layout="wide",
+                   initial_sidebar_state="collapsed")
 
-# ── Global CSS ───────────────────────────────────────────────────────────────
+# ── CSS ─────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* Hide default hamburger & footer */
 #MainMenu, footer { visibility: hidden; }
-
-/* Tighter top padding */
-.block-container { padding-top: 1rem; padding-bottom: 1rem; }
-
-/* KPI cards */
+.block-container { padding-top: 0.75rem; padding-bottom: 1rem; }
 .kpi-card {
-    background: #1A1D27;
-    border: 1px solid #2D3148;
-    border-radius: 10px;
-    padding: 16px 20px;
-    text-align: center;
+    background: #1A1D27; border: 1px solid #2D3148;
+    border-radius: 10px; padding: 14px 18px; text-align: center;
 }
-.kpi-label { color: #8B8FA8; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
-.kpi-value { color: #FAFAFA; font-size: 26px; font-weight: 700; }
-.kpi-sub   { color: #4F8BF9; font-size: 12px; margin-top: 2px; }
-
-/* Section headers */
-.section-header {
-    color: #8B8FA8;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    margin: 18px 0 8px 0;
-    border-bottom: 1px solid #2D3148;
-    padding-bottom: 4px;
+.kpi-label { color: #8B8FA8; font-size: 11px; text-transform: uppercase;
+             letter-spacing: 1px; margin-bottom: 3px; }
+.kpi-value { color: #FAFAFA; font-size: 24px; font-weight: 700; }
+.kpi-sub   { color: #4F8BF9; font-size: 11px; margin-top: 2px; }
+.section-hdr {
+    color: #8B8FA8; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 1.5px; margin: 14px 0 6px 0;
+    border-bottom: 1px solid #2D3148; padding-bottom: 3px;
 }
-
-/* Warning/info banners */
-.warn-box {
-    background: #2D1F1F;
-    border-left: 3px solid #E05252;
-    padding: 8px 12px;
-    border-radius: 4px;
-    font-size: 13px;
-    margin-bottom: 8px;
-}
-.info-box {
-    background: #1A2235;
-    border-left: 3px solid #4F8BF9;
-    padding: 8px 12px;
-    border-radius: 4px;
-    font-size: 13px;
-    margin-bottom: 8px;
+.warn-box { background:#2D1F1F; border-left:3px solid #E05252;
+            padding:8px 12px; border-radius:4px; font-size:13px; margin-bottom:6px; }
+.info-box { background:#1A2235; border-left:3px solid #4F8BF9;
+            padding:8px 12px; border-radius:4px; font-size:13px; margin-bottom:6px; }
+.stale-box{ background:#2D2510; border-left:3px solid #F0A843;
+            padding:8px 12px; border-radius:4px; font-size:13px; margin-bottom:6px; }
+.preview-chip {
+    background:#1A2235; border:1px solid #2D3148; border-radius:6px;
+    padding:6px 10px; font-size:12px; color:#8B8FA8; margin-top:2px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-PLOT_TEMPLATE = "plotly_dark"
-PLOT_COLORS   = ["#4F8BF9", "#52D68A", "#F0A843", "#E05252", "#A855F7", "#22D3EE"]
+PC = ["#4F8BF9","#52D68A","#F0A843","#E05252","#A855F7","#22D3EE"]
+TPL = "plotly_dark"
 
 # ── Session state ────────────────────────────────────────────────────────────
-if "assumptions"    not in st.session_state:
-    st.session_state.assumptions    = default_assumptions()
-if "headcount_plan" not in st.session_state:
-    st.session_state.headcount_plan = default_headcount()
-if "results"        not in st.session_state:
-    st.session_state.results        = None
+if "assumptions"    not in st.session_state: st.session_state.assumptions    = default_assumptions()
+if "headcount_plan" not in st.session_state: st.session_state.headcount_plan = default_headcount()
+if "results"        not in st.session_state: st.session_state.results        = None
+if "run_hash"       not in st.session_state: st.session_state.run_hash       = None
+if "run_ts"         not in st.session_state: st.session_state.run_ts         = None
+
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+def _hash_inputs():
+    d = json.dumps({
+        "a": {k: str(v) for k, v in st.session_state.assumptions.items()},
+        "h": st.session_state.headcount_plan,
+    }, sort_keys=True)
+    return hashlib.md5(d.encode()).hexdigest()
+
 def fmt_dollar(v):
-    if v is None or (isinstance(v, float) and (np.isnan(v) or np.isinf(v))):
-        return "—"
-    if abs(v) >= 1_000_000:
-        return f"${v/1_000_000:.2f}M"
-    if abs(v) >= 1_000:
-        return f"${v/1_000:.1f}K"
+    if v is None or (isinstance(v, float) and (np.isnan(v) or np.isinf(v))): return "—"
+    if abs(v) >= 1_000_000: return f"${v/1_000_000:.2f}M"
+    if abs(v) >= 1_000:     return f"${v/1_000:.1f}K"
     return f"${v:,.0f}"
 
 def fmt_pct(v):
-    if v is None or (isinstance(v, float) and (np.isnan(v) or np.isinf(v))):
-        return "—"
+    if v is None or (isinstance(v, float) and (np.isnan(v) or np.isinf(v))): return "—"
     return f"{v*100:.1f}%"
 
 def kpi(col, label, value, sub=None):
-    sub_html = f'<div class="kpi-sub">{sub}</div>' if sub else ""
-    col.markdown(
-        f'<div class="kpi-card">'
-        f'<div class="kpi-label">{label}</div>'
-        f'<div class="kpi-value">{value}</div>'
-        f'{sub_html}</div>',
-        unsafe_allow_html=True,
-    )
+    sub_h = f'<div class="kpi-sub">{sub}</div>' if sub else ""
+    col.markdown(f'<div class="kpi-card"><div class="kpi-label">{label}</div>'
+                 f'<div class="kpi-value">{value}</div>{sub_h}</div>',
+                 unsafe_allow_html=True)
 
 def section(label):
-    st.markdown(f'<div class="section-header">{label}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-hdr">{label}</div>', unsafe_allow_html=True)
+
+def preview(col, text):
+    col.markdown(f'<div class="preview-chip">{text}</div>', unsafe_allow_html=True)
 
 def run_and_store():
     with st.spinner("Running model…"):
         try:
-            w, m, q = run_model(
-                st.session_state.assumptions,
-                st.session_state.headcount_plan,
-            )
+            w, m, q = run_model(st.session_state.assumptions, st.session_state.headcount_plan)
             st.session_state.results = (w, m, q)
-            st.success("Model calculated.")
+            st.session_state.run_hash = _hash_inputs()
+            st.session_state.run_ts   = datetime.now().strftime("%I:%M %p")
         except Exception as e:
             st.error(f"Model error: {e}")
             st.session_state.results = None
 
-def results_ready():
-    return st.session_state.results is not None
+def results_ready(): return st.session_state.results is not None
+def is_stale():      return results_ready() and st.session_state.run_hash != _hash_inputs()
 
 def _select(df, cols):
     return df[[c for c in cols if c in df.columns]].reset_index(drop=True)
 
 def _line(df, x, ys, names, title, pct_y=False):
     fig = go.Figure()
-    for y, name, color in zip(ys, names, PLOT_COLORS):
+    for y, nm, c in zip(ys, names, PC):
         if y in df.columns:
-            fig.add_trace(go.Scatter(
-                x=df[x], y=df[y], name=name, mode="lines",
-                line=dict(color=color, width=2),
-            ))
-    fig.update_layout(
-        template=PLOT_TEMPLATE, title=title,
-        height=320, margin=dict(l=10, r=10, t=36, b=10),
-        legend=dict(orientation="h", y=-0.2),
-        yaxis=dict(tickformat=".0%" if pct_y else "$,.0f"),
-    )
-    fig.add_hline(y=0, line_dash="dot", line_color="#555", line_width=1)
+            fig.add_trace(go.Scatter(x=df[x], y=df[y], name=nm, mode="lines",
+                                     line=dict(color=c, width=2)))
+    fig.update_layout(template=TPL, title=title, height=320,
+                      margin=dict(l=10,r=10,t=36,b=10),
+                      legend=dict(orientation="h", y=-0.2),
+                      yaxis=dict(tickformat=".0%" if pct_y else "$,.0f"))
+    fig.add_hline(y=0, line_dash="dot", line_color="#444", line_width=1)
     return fig
 
-def _bar(df, x, ys, names, title, stacked=True):
+def _bar(df, x, ys, names, title):
     fig = go.Figure()
-    for y, name, color in zip(ys, names, PLOT_COLORS):
+    for y, nm, c in zip(ys, names, PC):
         if y in df.columns:
-            fig.add_trace(go.Bar(x=df[x], y=df[y], name=name, marker_color=color))
-    fig.update_layout(
-        template=PLOT_TEMPLATE, title=title,
-        barmode="stack" if stacked else "group",
-        height=320, margin=dict(l=10, r=10, t=36, b=10),
-        legend=dict(orientation="h", y=-0.2),
-        yaxis=dict(tickformat="$,.0f"),
-    )
+            fig.add_trace(go.Bar(x=df[x], y=df[y], name=nm, marker_color=c))
+    fig.update_layout(template=TPL, title=title, barmode="stack", height=320,
+                      margin=dict(l=10,r=10,t=36,b=10),
+                      legend=dict(orientation="h", y=-0.2),
+                      yaxis=dict(tickformat="$,.0f"))
     return fig
 
-def _range_filter(mo, label="Filter month range"):
-    """Return a filtered monthly_df based on a user-selected month range."""
-    active = mo[mo["revenue"] > 0]
-    if active.empty:
-        default_end = min(24, len(mo))
-    else:
-        last_active = int(active["month_idx"].max()) + 1
-        default_end = min(last_active + 3, len(mo))
-
-    lo, hi = st.select_slider(
-        label,
-        options=list(range(1, len(mo) + 1)),
-        value=(1, default_end),
-        key=label,
-    )
-    return mo[(mo["month_idx"] >= lo - 1) & (mo["month_idx"] <= hi - 1)]
-
-def _fmt_table(df, dollar_cols=None, pct_cols=None):
-    """Display a styled dark dataframe."""
+def _fmt_table(df, dollar_cols=None, pct_cols=None, highlight_neg=None, highlight_loc=None, max_loc_val=None):
     fmt = {}
     for c in (dollar_cols or []):
-        if c in df.columns:
-            fmt[c] = "${:,.0f}"
+        if c in df.columns: fmt[c] = "${:,.0f}"
     for c in (pct_cols or []):
-        if c in df.columns:
-            fmt[c] = "{:.1%}"
-    st.dataframe(
-        df.style.format(fmt),
-        use_container_width=True,
-        height=380,
-    )
+        if c in df.columns: fmt[c] = "{:.1%}"
+
+    styled = df.style.format(fmt)
+
+    def _row_style(row):
+        styles = [""] * len(row)
+        if highlight_neg and highlight_neg in row.index and row[highlight_neg] < 0:
+            i = row.index.get_loc(highlight_neg)
+            styles[i] = "color: #E05252; font-weight: bold"
+        if highlight_loc and highlight_loc in row.index and max_loc_val:
+            i = row.index.get_loc(highlight_loc)
+            if row[highlight_loc] > max_loc_val * 0.8:
+                styles[i] = "background-color: #3D2D00; color: #F0A843"
+        return styles
+
+    if highlight_neg or highlight_loc:
+        styled = styled.apply(_row_style, axis=1)
+
+    st.dataframe(styled, use_container_width=True, height=380)
+
+def _range_slider(key, mo, label="Show months"):
+    active = mo[mo["revenue"] > 0]
+    last   = int(active["month_idx"].max()) + 1 if not active.empty else 12
+    hi_def = min(last + 3, len(mo))
+    lo, hi = st.select_slider(label, options=list(range(1, len(mo)+1)),
+                               value=(1, hi_def), key=key)
+    return mo[(mo["month_idx"] >= lo-1) & (mo["month_idx"] <= hi-1)]
+
+
+# ── Scenario presets ─────────────────────────────────────────────────────────
+def _build_hc(rules):
+    hc = [0] * 120
+    for start, end, val in rules:
+        for i in range(start-1, min(end, 120)):
+            hc[i] = val
+    return hc
+
+PRESETS = {
+    "Conservative Launch": {
+        "assumptions": {**default_assumptions(),
+            "st_bill_rate":38.0,"ot_hours":5,"burden":0.33,"team_lead_ratio":15,
+            "lead_wage":24.0,"lead_ot_hours":5,"net_days":90,"apr":0.095,
+            "max_loc":500_000,"software_monthly":300,"recruiting_monthly":500,
+            "insurance_monthly":1000,"travel_monthly":300},
+        "headcount": _build_hc([(1,3,10),(4,6,15),(7,12,20),(13,24,25)]),
+    },
+    "Aggressive Growth": {
+        "assumptions": {**default_assumptions(),
+            "st_bill_rate":41.0,"ot_hours":15,"inspector_wage":21.0,"lead_wage":26.0,
+            "lead_ot_hours":15,"gm_loaded_annual":130_000,"opscoord_base":70_000,
+            "fieldsup_base":75_000,"regionalmgr_base":120_000,
+            "net_days":120,"max_loc":2_000_000,"cash_buffer":50_000,
+            "initial_cash":100_000,"software_monthly":1000,"recruiting_monthly":3000,
+            "insurance_monthly":2500,"travel_monthly":1500},
+        "headcount": _build_hc([(1,2,25),(3,4,50),(5,6,75),(7,9,100),
+                                 (10,12,125),(13,24,150),(25,60,175)]),
+    },
+    "Steady State (Mature Division)": {
+        "assumptions": {**default_assumptions(),
+            "st_bill_rate":39.5,"ot_hours":8,"inspector_wage":20.5,"lead_ot_hours":8,
+            "gm_loaded_annual":120_000,"opscoord_base":67_000,"fieldsup_base":72_000,
+            "regionalmgr_base":115_000,"net_days":45,"apr":0.075,
+            "max_loc":750_000,"cash_buffer":50_000,"initial_cash":50_000,
+            "software_monthly":500,"recruiting_monthly":750,
+            "insurance_monthly":1500,"travel_monthly":500},
+        "headcount": [60] * 120,
+    },
+}
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# HEADER BAR
+# HEADER — persistent, always visible
 # ════════════════════════════════════════════════════════════════════════════
-st.markdown("## Containment Division Calculator")
-st.caption("OpSource · Weekly financial model · 120-month horizon")
+h_title, h_btn = st.columns([5, 1])
+h_title.markdown("## Containment Division Calculator")
+h_title.caption("OpSource · Weekly financial model · 120-month horizon")
 
-# Always-visible top KPIs (if model has run)
+btn_label = f"▶  Run Model" + (f"  ·  Last run {st.session_state.run_ts}" if st.session_state.run_ts else "")
+if h_btn.button(btn_label, type="primary", use_container_width=True):
+    run_and_store()
+    st.rerun()
+
+if is_stale():
+    st.markdown('<div class="stale-box">Inputs changed since last run — click <b>Run Model</b> to update results.</div>',
+                unsafe_allow_html=True)
+
 if results_ready():
-    _, mo, _ = st.session_state.results
-    k1, k2, k3, k4, k5 = st.columns(5)
-    peak_mo = mo.loc[mo["loc_end"].idxmax(), "period"] if mo["loc_end"].max() > 0 else "—"
-    kpi(k1, "Peak LOC",           fmt_dollar(mo["loc_end"].max()),             peak_mo)
-    kpi(k2, "120-mo Revenue",     fmt_dollar(mo["revenue"].sum()),              "accrual")
-    kpi(k3, "120-mo EBITDA (AI)", fmt_dollar(mo["ebitda_after_interest"].sum()),"after interest")
-    kpi(k4, "Total Interest",     fmt_dollar(mo["interest"].sum()),             "cost of money")
-    yr1 = mo[mo["month_idx"] < 12]
-    kpi(k5, "Year 1 EBITDA (AI)", fmt_dollar(yr1["ebitda_after_interest"].sum()),"first 12 mo")
+    _, mo_h, _ = st.session_state.results
+    k1,k2,k3,k4,k5 = st.columns(5)
+    peak_mo = mo_h.loc[mo_h["loc_end"].idxmax(),"period"] if mo_h["loc_end"].max()>0 else "—"
+    kpi(k1,"Peak LOC",           fmt_dollar(mo_h["loc_end"].max()),             peak_mo)
+    kpi(k2,"120-mo Revenue",     fmt_dollar(mo_h["revenue"].sum()),             "accrual")
+    kpi(k3,"120-mo EBITDA (AI)", fmt_dollar(mo_h["ebitda_after_interest"].sum()),"after interest")
+    kpi(k4,"Total Interest",     fmt_dollar(mo_h["interest"].sum()),            "cost of money")
+    yr1 = mo_h[mo_h["month_idx"] < 12]
+    kpi(k5,"Year 1 EBITDA (AI)", fmt_dollar(yr1["ebitda_after_interest"].sum()),"first 12 months")
     st.divider()
 
+
 # ════════════════════════════════════════════════════════════════════════════
-# TOP-LEVEL TABS
+# TABS
 # ════════════════════════════════════════════════════════════════════════════
 tab_howto, tab_assume, tab_hc, tab_results, tab_summary, tab_sens = st.tabs([
-    "ℹ️  How to Use",
-    "⚙️  Assumptions",
-    "👥  Headcount Plan",
-    "📊  Results",
-    "📋  Scenario Summary",
-    "🔬  Sensitivity",
+    "How to Use",
+    "Assumptions",
+    "Headcount Plan",
+    "Results",
+    "Scenario Summary",
+    "Sensitivity Analysis",
 ])
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# TAB: HOW TO USE
+# HOW TO USE
 # ════════════════════════════════════════════════════════════════════════════
 with tab_howto:
     st.markdown("## Welcome to the Containment Division Calculator")
-    st.markdown("**Built for OpSource** · Models weekly operations and cash flow over a 120-month horizon.")
+    st.markdown("**Built for OpSource** · Models weekly cash flow and operations over a 120-month (10-year) horizon.")
     st.divider()
 
     st.markdown("""
-### How This Tool Works
-
-This calculator answers the key financial questions for running a Containment Division:
-- How much **Line of Credit (LOC)** do you need to fund payroll before customers pay?
-- When do collections **"catch up"** and LOC stabilizes?
-- What is your **EBITDA** before and after interest?
-- How does **management headcount** scale with inspector count?
+### What This Tool Answers
+- **How much Line of Credit (LOC)** do you need to cover payroll while waiting for customers to pay?
+- **When does the LOC stabilize** — when do collections finally "catch up" to payroll?
+- **What is EBITDA** before and after interest on the credit line?
+- **How does management cost scale** as you add more inspectors?
+- **What's your break-even** inspector count at various payment terms?
 """)
-
     st.divider()
-    st.markdown("### Step-by-Step Guide")
 
-    with st.expander("**Step 1 — Set Your Assumptions** (⚙️ Assumptions tab)", expanded=True):
+    with st.expander("**Step 1 — Load a Preset or Set Assumptions**", expanded=True):
         st.markdown("""
-**Billing & Inspector Pay**
-- Set your **ST Bill Rate** (what you charge per hour, default $39/hr)
-- Set **OT Bill Premium** — OT is billed at this multiplier × ST rate (default 1.5×)
-- Set **ST/OT hours per week** per inspector (default 40 ST + 10 OT = 50 hrs/week)
-- Set **Inspector Base Wage** and **Burden %** (payroll taxes + benefits, default 30%)
+Go to the **Assumptions** tab. You can either:
+- Load a **preset scenario** (Conservative Launch, Aggressive Growth, or Steady State) as a starting point
+- Or manually set all parameters — billing rates, wages, burden, management salaries, LOC terms, and overhead
 
-**Team Leads**
-- Team leads are **hourly**, burdened, and billed into revenue (same bill rate as inspectors)
-- Default: 1 team lead per 12 inspectors
-
-**Management Layering**
-- GM, Ops Coordinators, Field Supervisors, and Regional Managers are **salaried**
-- They activate automatically based on inspector count using span-of-control triggers
-- GM activates from month 1 by default (configurable)
-
-**Line of Credit (LOC)**
-- Set your **Max LOC** (default $1,000,000) and **APR** (default 8.5%)
-- **Auto Paydown**: when cash exceeds the buffer, excess automatically repays LOC
-- **Net Days**: how long after month-end statement customers take to pay (default 60 days)
-
-**Overhead**
-- Fixed monthly costs: Software, Recruiting, Insurance, Travel
-- Optional corporate allocation (fixed $ or % of revenue)
+Every field has a **? tooltip** — hover over it for a plain-English explanation.
 """)
-
-    with st.expander("**Step 2 — Enter Your Headcount Plan** (👥 Headcount Plan tab)"):
+    with st.expander("**Step 2 — Enter Your Headcount Plan**"):
         st.markdown("""
-- Enter the **number of inspectors staffed per month** for up to 120 months (10 years)
-- Use **Bulk Fill** to quickly set ranges — e.g., fill months 1–12 with 25 inspectors
-- You don't need to fill all 120 months — months with 0 inspectors have no hourly labor cost
-- Salaried management (GM, etc.) will still cost money in 0-inspector months if active — watch for this warning
-- The **range slider** lets you zoom into any period on the chart
+Go to the **Headcount Plan** tab. Enter the number of **inspectors staffed per month** for up to 120 months.
+
+- Use the **Bulk Fill** tool to quickly fill ranges (e.g., months 1–12 = 25 inspectors)
+- Months you leave at 0 have zero hourly labor cost — the model handles gaps cleanly
+- Team leads and management headcount are calculated automatically
 """)
-
-    with st.expander("**Step 3 — Run the Model** (⚙️ Assumptions tab → Run button)"):
+    with st.expander("**Step 3 — Run the Model**"):
         st.markdown("""
-- Click **▶ Run / Recalculate** in the Assumptions tab after any change
-- The model runs in seconds and updates all tabs automatically
-- The **5 KPI cards** at the top always show your current results
+Click **▶ Run Model** at the top right of the page — it's always visible no matter which tab you're on.
+
+The model runs in seconds. The 5 KPI cards at the top update immediately. An orange banner appears if you change inputs without re-running.
 """)
-
-    with st.expander("**Step 4 — Read Your Results** (📊 Results tab)"):
+    with st.expander("**Step 4 — Read Your Results**"):
         st.markdown("""
-**Dashboard sub-tab:**
-- LOC / AR / Cash chart — shows the cash cycle visually
-- Revenue vs Cost Stack — see when revenue overtakes costs
-- EBITDA margins — pre and post interest
-- Headcount by role — how management layers in
+Go to the **Results** tab. Use the **month range slider** to zoom into any period.
 
-**Monthly / Quarterly / Weekly sub-tabs:**
-- Full financial tables for any time range
-- Use the **range slider** at the top to filter to any period
-- Months with 0 inspectors show $0 revenue — the model won't break
-
-**Break-Even Calculator:**
-- Finds the minimum inspector count for positive EBITDA at a given Net Days
+- **Dashboard** — LOC/cash dynamics, revenue vs cost, EBITDA margins, headcount scaling
+- **Monthly** — full financial table with conditional formatting (red = negative EBITDA, orange = LOC near limit)
+- **Quarterly** — rolled-up view for reporting
+- **Weekly** — detailed week-by-week breakdown including AR schedule and cash roll-forward
 """)
-
-    with st.expander("**Step 5 — Run Sensitivities** (🔬 Sensitivity tab)"):
+    with st.expander("**Step 5 — Review the Scenario Summary**"):
         st.markdown("""
-- Tests how changing **Net Days, Bill Rate, Burden %, or OT Hours** affects your results
-- Each sensitivity re-runs the full 120-month model automatically
-- Charts and tables show Peak LOC, EBITDA margin, and total interest for each scenario
+The **Scenario Summary** tab shows a clean income statement view, headcount breakdown by role (avg and peak), revenue/expense pie charts, and an **Annual P&L** table by year — useful for board presentations.
 """)
-
-    with st.expander("**Step 6 — Export to Excel**"):
+    with st.expander("**Step 6 — Run Sensitivity Analysis**"):
         st.markdown("""
-- Go to **📊 Results → Dashboard** and click **Build Excel Export**
-- Or go to **🔬 Sensitivity** and click **Export All + Sensitivity to Excel**
-- The Excel file includes: Assumptions, Headcount Plan, Weekly, Monthly, Quarterly, and Sensitivity sheets
+The **Sensitivity Analysis** tab re-runs the full model across a range of values for:
+- **Customer Payment Terms** (Net Days) — how much does LOC grow if customers pay slower?
+- **Bill Rate** — what's the margin impact of a $1/hr rate change?
+- **Payroll Burden** — how sensitive is EBITDA to burden rate assumptions?
+- **Overtime Hours** — what's the revenue/margin impact of more or less OT?
+""")
+    with st.expander("**Step 7 — Export to Excel**"):
+        st.markdown("""
+Go to **Results → Dashboard** or **Sensitivity Analysis** and click the Export button.
+
+The Excel file includes: Assumptions, Headcount Plan, Weekly, Monthly, Quarterly, and (optionally) all Sensitivity tables.
 """)
 
     st.divider()
     st.markdown("### Key Concepts")
-    col1, col2 = st.columns(2)
-    with col1:
+    c1, c2 = st.columns(2)
+    with c1:
         st.markdown("""
-**AR Lag (Net Days)**
-Customers are invoiced via a month-end statement.
-Collections arrive Net Days later as a lump sum.
-During that gap, you draw the LOC to cover payroll.
+**Why do you need a Line of Credit?**
+You pay inspectors weekly (with a 1-week lag), but customers receive a monthly statement and pay 60–120 days later. During that gap, you are funding payroll out of pocket — that's what the LOC is for.
 
-**LOC Draw Logic**
-LOC is drawn automatically when cash would go below
-the minimum buffer. With Auto Paydown ON, excess
-cash above the buffer automatically repays the LOC.
+**What is Burden?**
+Burden is the employer-side cost on top of wages: payroll taxes (FICA ~7.65%), federal and state unemployment tax, workers' comp, and benefits. A 30% burden means a $20/hr inspector costs you $26/hr all-in.
 
-**Payroll Timing**
-Hourly workers (inspectors + team leads) are paid
-with a 1-week lag. Salaried management is paid
-in the current week.
+**How does Auto Paydown work?**
+When cash on hand exceeds the minimum buffer, excess cash automatically repays the LOC. This minimizes interest cost. Turn it OFF if you want to model holding excess cash rather than paying down debt.
 """)
-    with col2:
+    with c2:
         st.markdown("""
-**EBITDA Pre-Interest vs After Interest**
-Pre-interest EBITDA = Revenue − Labor − Overhead
-After-interest EBITDA = Pre-interest EBITDA − LOC interest
+**What is EBITDA vs EBITDA after interest?**
+EBITDA (pre-interest) = Revenue − Labor − Overhead. This shows operating profitability before the cost of borrowing.
+EBITDA after interest = EBITDA − LOC interest. This is your true bottom line given the financing structure.
 
-**Management Scaling**
-Roles activate automatically:
-- Ops Coordinator: 1 per 75 inspectors
-- Field Supervisor: 1 per 60 inspectors
-- Regional Manager: 1 per 175 inspectors
-- GM: 1 from month 1 (configurable)
+**How does management scale?**
+The model automatically adds salaried management as your inspector count grows:
+- 1 Ops Coordinator per 75 inspectors
+- 1 Field Supervisor per 60 inspectors
+- 1 Regional Manager per 175 inspectors
+- GM is active from Month 1 (configurable)
 
-**Zero-Inspector Months**
-Months with 0 inspectors have $0 hourly labor.
-Salaried roles persist unless the division is fully shut down.
+**What are team leads?**
+Team leads are hourly workers (not salaried). They supervise inspector crews in the field, are burdened like inspectors, and their hours are billed to the customer at the same rates as inspectors.
 """)
-
-    st.divider()
-    st.info("**Tip:** Start with the default base case (25 inspectors for 12 months), run the model, and explore the Dashboard tab to understand the cash dynamics before changing assumptions.")
+    st.info("**Quick Start:** Go to Assumptions → load the 'Steady State' preset → click Run Model → explore the Dashboard.")
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# TAB: ASSUMPTIONS
+# ASSUMPTIONS
 # ════════════════════════════════════════════════════════════════════════════
 with tab_assume:
     a = st.session_state.assumptions
 
-    col_run, col_note = st.columns([1, 3])
-    if col_run.button("▶  Run / Recalculate", type="primary", use_container_width=True):
-        run_and_store()
-    col_note.caption("Change any value below, then click Run to update all results.")
+    # Preset loader
+    section("Load a Preset Scenario")
+    preset_choice = st.selectbox(
+        "Start from a preset (overwrites all assumptions and headcount)",
+        ["— Select a preset —"] + list(PRESETS.keys()),
+        help="Presets are starting points. You can modify any value after loading.")
+    if preset_choice != "— Select a preset —":
+        if st.button(f"Load  '{preset_choice}'", type="secondary"):
+            p = PRESETS[preset_choice]
+            st.session_state.assumptions    = p["assumptions"].copy()
+            st.session_state.headcount_plan = p["headcount"].copy()
+            a = st.session_state.assumptions
+            st.success(f"Loaded '{preset_choice}'. Review values below, then click Run Model.")
+            st.rerun()
 
     st.divider()
 
-    # ── Billing & Inspector Pay ──────────────────────────────────────
-    section("What You Charge Customers & What You Pay Inspectors")
-    c1, c2, c3, c4 = st.columns(4)
-    a["st_bill_rate"]      = c1.number_input(
-        "Regular-Time Bill Rate ($/hr)",
-        value=float(a["st_bill_rate"]), step=0.5, format="%.2f",
-        help="The hourly rate you charge the client for each inspector during regular (straight-time) hours.")
-    a["ot_bill_premium"]   = c2.number_input(
-        "Overtime Bill Multiplier",
-        value=float(a["ot_bill_premium"]), step=0.1, format="%.1f",
-        help="OT hours are billed at this multiple of the regular rate. Default 1.5× means OT bills at $58.50/hr if regular is $39/hr.")
-    a["st_hours"]          = c3.number_input(
-        "Regular Hours per Inspector per Week",
-        value=int(a["st_hours"]), step=1, format="%d",
-        help="Standard work hours per inspector per week, not counting overtime. Typically 40.")
-    a["ot_hours"]          = c4.number_input(
-        "Overtime Hours per Inspector per Week",
-        value=int(a["ot_hours"]), step=1, format="%d",
-        help="Overtime hours per inspector per week. These are billed and paid at the OT multiplier. Set to 0 if no planned OT.")
+    # ── Billing & Pay ────────────────────────────────────────────────
+    # Live preview values
+    _ot_bill = a["st_bill_rate"] * a["ot_bill_premium"]
+    _wk_rev  = (a["st_hours"] * a["st_bill_rate"] + a["ot_hours"] * _ot_bill)
+    _insp_cost_wk = (a["st_hours"] * a["inspector_wage"] * (1+a["burden"]) +
+                     a["ot_hours"] * a["inspector_wage"] * a["ot_pay_multiplier"] * (1+a["burden"]))
 
-    c5, c6, c7, c8 = st.columns(4)
-    a["inspector_wage"]    = c5.number_input(
-        "Inspector Hourly Wage ($/hr)",
-        value=float(a["inspector_wage"]), step=0.5, format="%.2f",
-        help="What you pay each inspector per regular hour, before burden (taxes/benefits).")
-    a["ot_pay_multiplier"] = c6.number_input(
-        "Overtime Pay Multiplier",
-        value=float(a["ot_pay_multiplier"]), step=0.1, format="%.1f",
-        help="Inspectors are paid this multiple of their wage for OT hours. Default 1.5× is standard (time-and-a-half).")
-    a["burden"]            = c7.number_input(
-        "Payroll Burden Rate (e.g. 0.30 = 30%)",
-        value=float(a["burden"]), step=0.01, format="%.2f",
-        help="The percentage added on top of wages to cover payroll taxes, workers comp, and benefits. Enter as a decimal — 0.30 means 30%.")
-    a["net_days"]          = c8.number_input(
-        "Customer Payment Terms (Days After Month-End)",
-        value=int(a["net_days"]), step=5, format="%d",
-        help="How many days after receiving their monthly statement customers typically pay. Net 60 is common in this industry. This drives how long you need to borrow on your line of credit.")
+    with st.expander(f"Billing & Inspector Pay  ·  ${a['st_bill_rate']:.2f}/hr bill  ·  ${_wk_rev:,.0f}/inspector/wk revenue", expanded=True):
+        c1,c2,c3,c4 = st.columns(4)
+        a["st_bill_rate"]      = c1.number_input("Regular-Time Bill Rate ($/hr)", value=float(a["st_bill_rate"]), step=0.5, format="%.2f",
+            help="Hourly rate charged to the customer for each inspector's regular (non-overtime) hours.")
+        a["ot_bill_premium"]   = c2.number_input("Overtime Billing Multiplier", value=float(a["ot_bill_premium"]), step=0.1, format="%.1f",
+            help=f"OT hours are billed at this multiple of the regular rate. Currently: OT bills at ${a['st_bill_rate']*a['ot_bill_premium']:.2f}/hr.")
+        a["st_hours"]          = c3.number_input("Regular Hours per Inspector/Week", value=int(a["st_hours"]), step=1, format="%d",
+            help="Standard work hours per inspector per week, not counting overtime. Typically 40.")
+        a["ot_hours"]          = c4.number_input("Overtime Hours per Inspector/Week", value=int(a["ot_hours"]), step=1, format="%d",
+            help="Planned overtime hours per inspector per week. These are billed and paid at the OT multiplier. Set 0 for no OT.")
+
+        c5,c6,c7,c8 = st.columns(4)
+        a["inspector_wage"]    = c5.number_input("Inspector Hourly Wage ($/hr)", value=float(a["inspector_wage"]), step=0.5, format="%.2f",
+            help="Base hourly pay for inspectors before burden (taxes and benefits).")
+        a["ot_pay_multiplier"] = c6.number_input("Overtime Pay Multiplier", value=float(a["ot_pay_multiplier"]), step=0.1, format="%.1f",
+            help=f"Inspectors earn this multiple of base wage for OT hours. At 1.5× and ${a['inspector_wage']:.2f}/hr, OT pay is ${a['inspector_wage']*a['ot_pay_multiplier']:.2f}/hr.")
+        a["burden"]            = c7.number_input("Payroll Burden Rate (e.g. 0.30 = 30%)", value=float(a["burden"]), step=0.01, format="%.2f",
+            help="Employer-side cost on top of wages: FICA, unemployment tax, workers' comp, and benefits. Enter as a decimal.")
+        a["net_days"]          = c8.number_input("Customer Payment Terms (Days After Month-End)", value=int(a["net_days"]), step=5, format="%d",
+            help="Days after the month-end statement that customers typically pay. This is the primary driver of how much LOC you need. Net 60 is common in this industry.")
+
+        # Live previews
+        p1,p2,p3 = st.columns(3)
+        preview(p1, f"Weekly revenue per inspector: ${(a['st_hours']*a['st_bill_rate'] + a['ot_hours']*a['st_bill_rate']*a['ot_bill_premium']):,.0f}")
+        preview(p2, f"Fully loaded inspector cost/wk: ${(a['st_hours']*a['inspector_wage']*(1+a['burden']) + a['ot_hours']*a['inspector_wage']*a['ot_pay_multiplier']*(1+a['burden'])):,.0f}")
+        preview(p3, f"Inspector gross margin: {((a['st_hours']*a['st_bill_rate']+a['ot_hours']*a['st_bill_rate']*a['ot_bill_premium']) - (a['st_hours']*a['inspector_wage']*(1+a['burden'])+a['ot_hours']*a['inspector_wage']*a['ot_pay_multiplier']*(1+a['burden'])))/(a['st_hours']*a['st_bill_rate']+a['ot_hours']*a['st_bill_rate']*a['ot_bill_premium'])*100:.1f}%")
 
     # ── Team Leads ───────────────────────────────────────────────────
-    section("Team Leads — Hourly, Billed to Customer")
-    st.caption("Team leads are hourly workers (not salaried). They are counted in your billable hours and billed to the customer at the same rates as inspectors.")
-    c1, c2, c3, c4 = st.columns(4)
-    a["team_lead_ratio"]   = c1.number_input(
-        "Inspectors per Team Lead",
-        value=int(a["team_lead_ratio"]), step=1, format="%d",
-        help="One team lead is added for every N inspectors. Default is 1 per 12. If you have 25 inspectors, the model adds 3 team leads (⌈25/12⌉).")
-    a["lead_wage"]         = c2.number_input(
-        "Team Lead Hourly Wage ($/hr)",
-        value=float(a["lead_wage"]), step=0.5, format="%.2f",
-        help="Base hourly pay for team leads before burden. Typically higher than inspector wage.")
-    a["lead_st_hours"]     = c3.number_input(
-        "Team Lead Regular Hours/Week",
-        value=int(a["lead_st_hours"]), step=1, format="%d",
-        help="Regular (straight-time) hours worked per team lead per week.")
-    a["lead_ot_hours"]     = c4.number_input(
-        "Team Lead Overtime Hours/Week",
-        value=int(a["lead_ot_hours"]), step=1, format="%d",
-        help="Overtime hours per team lead per week. Set to 0 if team leads don't work OT.")
+    with st.expander(f"Team Leads  ·  1 per {a['team_lead_ratio']} inspectors  ·  ${a['lead_wage']:.2f}/hr"):
+        st.caption("Team leads are hourly workers billed to the customer at the same rates as inspectors. They are NOT salaried.")
+        c1,c2,c3,c4 = st.columns(4)
+        a["team_lead_ratio"]   = c1.number_input("Inspectors per Team Lead", value=int(a["team_lead_ratio"]), step=1, format="%d",
+            help="One team lead is added for every N inspectors (rounded up). At 12: 25 inspectors → 3 team leads.")
+        a["lead_wage"]         = c2.number_input("Team Lead Hourly Wage ($/hr)", value=float(a["lead_wage"]), step=0.5, format="%.2f",
+            help="Base hourly pay for team leads before burden. Typically higher than inspector wage.")
+        a["lead_st_hours"]     = c3.number_input("Team Lead Regular Hours/Week", value=int(a["lead_st_hours"]), step=1, format="%d",
+            help="Regular (straight-time) hours worked per team lead per week.")
+        a["lead_ot_hours"]     = c4.number_input("Team Lead Overtime Hours/Week", value=int(a["lead_ot_hours"]), step=1, format="%d",
+            help="Overtime hours per team lead per week. Set 0 if team leads don't work OT.")
 
     # ── Management ───────────────────────────────────────────────────
-    section("Salaried Management — Auto-Scaled by Headcount")
-    st.caption("These roles are salaried and activate automatically as your inspector count grows. The model adds one role for every N inspectors based on the thresholds below.")
-    c1, c2, c3, c4 = st.columns(4)
-    a["gm_loaded_annual"]  = c1.number_input(
-        "General Manager — Total Annual Cost ($)",
-        value=float(a["gm_loaded_annual"]), step=1000., format="%.0f",
-        help="The fully-loaded annual cost of the GM including salary, benefits, and taxes. Already fully burdened — do NOT add burden again. Default $117,000.")
-    a["opscoord_base"]     = c2.number_input(
-        "Operations Coordinator — Base Annual Salary ($)",
-        value=float(a["opscoord_base"]), step=1000., format="%.0f",
-        help="Base salary for an Ops Coordinator. The management burden % below is applied on top. Ops Coordinators handle scheduling, dispatch, and field support.")
-    a["fieldsup_base"]     = c3.number_input(
-        "Field Supervisor — Base Annual Salary ($)",
-        value=float(a["fieldsup_base"]), step=1000., format="%.0f",
-        help="Base salary for a Field Supervisor. Management burden is applied on top. Field Supervisors directly oversee inspector crews in the field.")
-    a["regionalmgr_base"]  = c4.number_input(
-        "Regional Manager — Base Annual Salary ($)",
-        value=float(a["regionalmgr_base"]), step=1000., format="%.0f",
-        help="Base salary for a Regional Manager. Management burden is applied on top. Regional Managers oversee multiple field supervisors across a geography.")
+    _ops_loaded  = a["opscoord_base"]   * (1 + a["mgmt_burden"])
+    _fsup_loaded = a["fieldsup_base"]   * (1 + a["mgmt_burden"])
+    _rmgr_loaded = a["regionalmgr_base"]* (1 + a["mgmt_burden"])
 
-    c5, c6, c7, c8 = st.columns(4)
-    a["mgmt_burden"]       = c5.number_input(
-        "Management Benefit & Tax Rate (e.g. 0.25 = 25%)",
-        value=float(a["mgmt_burden"]), step=0.01, format="%.2f",
-        help="Burden rate applied to salaried management base salaries (not the GM — GM is already fully loaded). Covers employer taxes and benefits. Enter as decimal.")
-    a["opscoord_span"]     = c6.number_input(
-        "Inspectors per Operations Coordinator",
-        value=int(a["opscoord_span"]), step=5, format="%d",
-        help="The model adds 1 Ops Coordinator for every N inspectors. At 75 inspectors you get 1, at 150 you get 2, etc. Adjust based on your management structure.")
-    a["fieldsup_span"]     = c7.number_input(
-        "Inspectors per Field Supervisor",
-        value=int(a["fieldsup_span"]), step=5, format="%d",
-        help="The model adds 1 Field Supervisor for every N inspectors. Default is 1 per 60 — meaning a supervisor covers up to 60 workers in the field.")
-    a["regionalmgr_span"]  = c8.number_input(
-        "Inspectors per Regional Manager",
-        value=int(a["regionalmgr_span"]), step=5, format="%d",
-        help="The model adds 1 Regional Manager for every N inspectors. Default is 1 per 175. You likely won't need one until you're staffing 175+ inspectors.")
+    with st.expander(f"Salaried Management  ·  GM ${a['gm_loaded_annual']:,.0f}  ·  1 Field Sup per {a['fieldsup_span']} inspectors"):
+        st.caption("These roles are salaried and activate automatically as your inspector count grows. The model adds one for every N inspectors using the thresholds below.")
+        c1,c2,c3,c4 = st.columns(4)
+        a["gm_loaded_annual"]  = c1.number_input("General Manager — Total Annual Cost ($)", value=float(a["gm_loaded_annual"]), step=1000., format="%.0f",
+            help="Fully-loaded annual cost of the GM including salary, bonus, and benefits. Already fully burdened — do NOT add burden again.")
+        a["opscoord_base"]     = c2.number_input("Operations Coordinator — Base Annual Salary ($)", value=float(a["opscoord_base"]), step=1000., format="%.0f",
+            help="Base salary for an Ops Coordinator. The management burden rate is applied on top. Ops Coordinators handle scheduling, dispatch, and field support.")
+        a["fieldsup_base"]     = c3.number_input("Field Supervisor — Base Annual Salary ($)", value=float(a["fieldsup_base"]), step=1000., format="%.0f",
+            help="Base salary for a Field Supervisor. Management burden applied on top. Field Supervisors directly oversee inspector crews in the field.")
+        a["regionalmgr_base"]  = c4.number_input("Regional Manager — Base Annual Salary ($)", value=float(a["regionalmgr_base"]), step=1000., format="%.0f",
+            help="Base salary for a Regional Manager. Management burden applied on top. You likely won't need one until 175+ inspectors.")
 
-    c9, c10 = st.columns(4)[:2]
-    a["gm_start_month"]    = c9.number_input(
-        "Month to Hire the GM (model month #)",
-        value=int(a["gm_start_month"]), step=1, format="%d",
-        help="Which month of the model the GM starts. Month 1 = the very first month. Set to a later month if you plan to delay the GM hire.")
-    a["gm_ramp_months"]    = c10.number_input(
-        "GM Part-Time Ramp Period (months at half cost)",
-        value=int(a["gm_ramp_months"]), step=1, format="%d",
-        help="Number of months the GM is part-time (0.5 FTE) before going full-time. Set to 0 if the GM starts full-time immediately.")
+        c5,c6,c7,c8 = st.columns(4)
+        a["mgmt_burden"]       = c5.number_input("Management Benefit & Tax Rate (e.g. 0.25 = 25%)", value=float(a["mgmt_burden"]), step=0.01, format="%.2f",
+            help="Burden rate applied to salaried management base salaries. Covers employer taxes and benefits. NOT applied to GM (GM is already fully loaded).")
+        a["opscoord_span"]     = c6.number_input("Inspectors per Operations Coordinator", value=int(a["opscoord_span"]), step=5, format="%d",
+            help="The model adds 1 Ops Coordinator for every N inspectors. At 75: 1 hire. At 150: 2 hires. Adjust to match your management structure.")
+        a["fieldsup_span"]     = c7.number_input("Inspectors per Field Supervisor", value=int(a["fieldsup_span"]), step=5, format="%d",
+            help="One Field Supervisor added per N inspectors. Default 60 — a supervisor covers up to 60 field workers.")
+        a["regionalmgr_span"]  = c8.number_input("Inspectors per Regional Manager", value=int(a["regionalmgr_span"]), step=5, format="%d",
+            help="One Regional Manager per N inspectors. Default 175 — you likely won't need one for a while.")
+
+        c9,c10 = st.columns(4)[:2]
+        a["gm_start_month"]    = c9.number_input("Month to Hire the GM (model month #)", value=int(a["gm_start_month"]), step=1, format="%d",
+            help="Which model month the GM starts. Month 1 = first month of the model. Delay if you're not hiring a GM right away.")
+        a["gm_ramp_months"]    = c10.number_input("GM Part-Time Ramp Period (months at half cost)", value=int(a["gm_ramp_months"]), step=1, format="%d",
+            help="Months the GM is part-time (half cost) before going full-time. Set 0 if the GM starts full-time immediately.")
+
+        # Live preview
+        p1,p2,p3,p4 = st.columns(4)
+        preview(p1, f"GM weekly cost: ${a['gm_loaded_annual']/52:,.0f}")
+        preview(p2, f"Ops Coord fully loaded: ${_ops_loaded:,.0f}/yr")
+        preview(p3, f"Field Sup fully loaded: ${_fsup_loaded:,.0f}/yr")
+        preview(p4, f"Reg Mgr fully loaded: ${_rmgr_loaded:,.0f}/yr")
 
     # ── LOC ──────────────────────────────────────────────────────────
-    section("Line of Credit (LOC) — Funding the AR Gap")
-    st.caption("Because customers pay 60–120 days after month-end, you need a credit line to cover payroll in the meantime. The model draws and repays this automatically.")
-    c1, c2, c3, c4 = st.columns(4)
-    a["apr"]               = c1.number_input(
-        "Annual Interest Rate on LOC (e.g. 0.085 = 8.5%)",
-        value=float(a["apr"]), step=0.005, format="%.3f",
-        help="The annual interest rate your bank charges on the line of credit balance. Enter as a decimal — 0.085 = 8.5%. Interest is calculated monthly on the average balance.")
-    a["max_loc"]           = c2.number_input(
-        "Maximum Credit Line Amount ($)",
-        value=float(a["max_loc"]), step=50000., format="%.0f",
-        help="The maximum amount you can borrow on the line of credit. The model warns you if it needs more than this. Default $1,000,000.")
-    a["initial_cash"]      = c3.number_input(
-        "Starting Cash Balance ($)",
-        value=float(a["initial_cash"]), step=5000., format="%.0f",
-        help="Cash on hand at the start of the model. If you're starting from zero, leave at $0.")
-    a["cash_buffer"]       = c4.number_input(
-        "Minimum Cash Buffer to Keep On Hand ($)",
-        value=float(a["cash_buffer"]), step=5000., format="%.0f",
-        help="The model maintains at least this much cash at all times by drawing the LOC if needed. Default $25,000 — acts as a safety cushion.")
-    a["auto_paydown"]      = st.checkbox(
-        "Automatically repay the credit line when cash exceeds the buffer",
-        value=bool(a["auto_paydown"]),
-        help="When ON: any cash above the buffer is automatically swept to pay down the LOC, reducing interest cost. When OFF: LOC is only drawn when needed, never proactively repaid.")
-    a["start_date"]        = st.date_input("Model Start Date", value=a["start_date"],
-                                            help="The first day of the model. All weeks and months are calculated forward from this date.")
+    _mo_int_est = (a["apr"]/12) * a["max_loc"]
+    with st.expander(f"Line of Credit  ·  {a['apr']*100:.1f}% APR  ·  Max ${a['max_loc']:,.0f}  ·  Net {a['net_days']} days"):
+        st.caption("The LOC funds payroll during the gap between when you pay workers and when customers pay you. The model draws and repays it automatically each week.")
+        c1,c2,c3,c4 = st.columns(4)
+        a["apr"]          = c1.number_input("Annual Interest Rate on LOC (e.g. 0.085 = 8.5%)", value=float(a["apr"]), step=0.005, format="%.3f",
+            help="Annual percentage rate on the LOC balance. Enter as decimal. Interest is calculated monthly on the average weekly LOC balance.")
+        a["max_loc"]      = c2.number_input("Maximum Credit Line ($)", value=float(a["max_loc"]), step=50000., format="%.0f",
+            help="The bank's maximum draw limit. The model warns you if payroll needs exceed this amount.")
+        a["initial_cash"] = c3.number_input("Starting Cash Balance ($)", value=float(a["initial_cash"]), step=5000., format="%.0f",
+            help="Cash on hand when the model starts. Set 0 if the division launches with no cash reserves.")
+        a["cash_buffer"]  = c4.number_input("Minimum Cash Reserve ($)", value=float(a["cash_buffer"]), step=5000., format="%.0f",
+            help="The model draws the LOC to keep at least this much cash on hand at all times. Acts as a weekly payroll safety margin.")
+        a["auto_paydown"] = st.checkbox("Automatically repay the credit line when cash exceeds the reserve",
+            value=bool(a["auto_paydown"]),
+            help="ON: excess cash above the buffer sweeps to pay down the LOC, saving interest. OFF: LOC is only drawn when needed, cash is held.")
+        a["start_date"]   = st.date_input("Model Start Date", value=a["start_date"],
+            help="The first day of the model. All weeks and months are calculated forward from this date.")
+        preview(st.columns(1)[0], f"Monthly interest at full draw (${a['max_loc']:,.0f}): ${_mo_int_est:,.0f}/mo")
 
     # ── Overhead ─────────────────────────────────────────────────────
-    section("Fixed Monthly Overhead Costs")
-    st.caption("These costs are incurred every month regardless of inspector count.")
-    c1, c2, c3, c4 = st.columns(4)
-    a["software_monthly"]   = c1.number_input("Software & Tech ($/mo)",
-        value=float(a["software_monthly"]), step=100., format="%.0f",
-        help="Monthly cost for software tools — scheduling, time tracking, reporting, etc.")
-    a["recruiting_monthly"] = c2.number_input("Recruiting & Hiring ($/mo)",
-        value=float(a["recruiting_monthly"]), step=100., format="%.0f",
-        help="Monthly spend on job boards, recruiters, background checks, and onboarding.")
-    a["insurance_monthly"]  = c3.number_input("Insurance ($/mo)",
-        value=float(a["insurance_monthly"]), step=100., format="%.0f",
-        help="Monthly insurance costs not already included in burden — general liability, E&O, etc.")
-    a["travel_monthly"]     = c4.number_input("Travel & Field Expenses ($/mo)",
-        value=float(a["travel_monthly"]), step=100., format="%.0f",
-        help="Monthly travel, mileage, lodging, and miscellaneous field expenses.")
+    _total_ovhd = (a["software_monthly"] + a["recruiting_monthly"] +
+                   a["insurance_monthly"] + a["travel_monthly"] +
+                   (a["corp_alloc_fixed"] if a["corp_alloc_mode"]=="fixed" else 0))
+    with st.expander(f"Fixed Monthly Overhead  ·  ${_total_ovhd:,.0f}/mo total"):
+        st.caption("These costs are incurred every month regardless of inspector count.")
+        c1,c2,c3,c4 = st.columns(4)
+        a["software_monthly"]   = c1.number_input("Software & Technology ($/mo)", value=float(a["software_monthly"]), step=100., format="%.0f",
+            help="Monthly cost for scheduling, time tracking, field management, and reporting tools.")
+        a["recruiting_monthly"] = c2.number_input("Recruiting & Onboarding ($/mo)", value=float(a["recruiting_monthly"]), step=100., format="%.0f",
+            help="Monthly spend on job boards, background checks, drug screening, and new hire onboarding.")
+        a["insurance_monthly"]  = c3.number_input("Insurance ($/mo)", value=float(a["insurance_monthly"]), step=100., format="%.0f",
+            help="Monthly insurance costs not included in burden — general liability, E&O, commercial auto, etc.")
+        a["travel_monthly"]     = c4.number_input("Travel & Field Expenses ($/mo)", value=float(a["travel_monthly"]), step=100., format="%.0f",
+            help="Monthly travel, mileage reimbursement, lodging, and per diem for field operations.")
 
-    ca_mode = st.radio("Corporate / Parent Company Allocation",
-                       ["Fixed monthly amount", "Percentage of revenue"],
-                       index=0 if a["corp_alloc_mode"] == "fixed" else 1,
-                       horizontal=True,
-                       help="Whether to charge a fixed overhead allocation from the parent company or a % of revenue. Default is $0 since this division is inside OpSource.")
-    a["corp_alloc_mode"] = "fixed" if ca_mode == "Fixed monthly amount" else "pct_revenue"
-    if a["corp_alloc_mode"] == "fixed":
-        a["corp_alloc_fixed"] = st.number_input("Corporate Allocation ($/mo)",
-            value=float(a["corp_alloc_fixed"]), step=500., format="%.0f",
-            help="Fixed monthly charge from the parent company. Default $0.")
-    else:
-        a["corp_alloc_pct"]   = st.number_input("Corporate Allocation (% of Revenue)",
-            value=float(a["corp_alloc_pct"]), step=0.005, format="%.3f",
-            help="Percentage of revenue charged by the parent company. Enter as decimal — 0.05 = 5%.")
+        ca_mode = st.radio("Corporate / Parent Company Overhead Allocation",
+                           ["Fixed monthly amount", "Percentage of revenue"], horizontal=True,
+                           index=0 if a["corp_alloc_mode"]=="fixed" else 1,
+                           help="Charge from the parent company for shared services. Default $0 since this division is inside OpSource.")
+        a["corp_alloc_mode"] = "fixed" if ca_mode=="Fixed monthly amount" else "pct_revenue"
+        if a["corp_alloc_mode"] == "fixed":
+            a["corp_alloc_fixed"] = st.number_input("Corporate Allocation — Fixed ($/mo)", value=float(a["corp_alloc_fixed"]), step=500., format="%.0f",
+                help="Fixed monthly charge from corporate. Default $0.")
+        else:
+            a["corp_alloc_pct"] = st.number_input("Corporate Allocation — % of Revenue (e.g. 0.03 = 3%)", value=float(a["corp_alloc_pct"]), step=0.005, format="%.3f",
+                help="Variable corporate charge as a percentage of gross revenue. Enter as decimal.")
 
     st.session_state.assumptions = a
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# TAB: HEADCOUNT PLAN
+# HEADCOUNT PLAN
 # ════════════════════════════════════════════════════════════════════════════
 with tab_hc:
     hc = st.session_state.headcount_plan
     a_start = st.session_state.assumptions["start_date"]
 
-    # Bulk fill
     section("Bulk Fill")
-    c1, c2, c3, c4 = st.columns(4)
-    fill_val  = c1.number_input("Inspectors",  0, 10000, 25, step=5, key="fv")
-    fill_from = c2.number_input("From month",  1, 120,   1,  step=1, key="ff")
-    fill_to   = c3.number_input("To month",    1, 120,   12, step=1, key="ft")
-    if c4.button("Apply", use_container_width=True):
-        for i in range(int(fill_from) - 1, int(fill_to)):
-            hc[i] = int(fill_val)
+    c1,c2,c3,c4 = st.columns(4)
+    fv = c1.number_input("Inspectors", 0, 10000, 25, step=5, key="fv")
+    ff = c2.number_input("From month", 1, 120,   1,  step=1, key="ff")
+    ft = c3.number_input("To month",   1, 120,   12, step=1, key="ft")
+    if c4.button("Apply Fill", use_container_width=True):
+        for i in range(int(ff)-1, int(ft)): hc[i] = int(fv)
         st.session_state.headcount_plan = hc
         st.rerun()
 
-    # Preview chart (range-filtered)
-    section("Preview")
     month_labels = []
     for i in range(120):
-        yr = a_start.year  + (a_start.month - 1 + i) // 12
-        mo = (a_start.month - 1 + i) % 12 + 1
+        yr = a_start.year  + (a_start.month-1+i) // 12
+        mo = (a_start.month-1+i) % 12 + 1
         month_labels.append(f"{yr}-{mo:02d}")
 
-    hc_preview_df = pd.DataFrame({"month_idx": range(120), "period": month_labels, "inspectors": hc})
-    lo_hc, hi_hc = st.select_slider(
-        "Show months",
-        options=list(range(1, 121)),
-        value=(1, 24),
-        key="hc_range",
-    )
-    filtered_hc = hc_preview_df[(hc_preview_df["month_idx"] >= lo_hc - 1) & (hc_preview_df["month_idx"] <= hi_hc - 1)]
-    fig_hc = px.bar(filtered_hc, x="period", y="inspectors",
-                    template=PLOT_TEMPLATE, title="Inspectors Staffed per Month",
-                    color_discrete_sequence=[PLOT_COLORS[0]])
-    fig_hc.update_layout(height=280, margin=dict(l=10, r=10, t=36, b=10))
+    section("Preview")
+    lo_hc, hi_hc = st.select_slider("Show months", options=list(range(1,121)), value=(1,24), key="hc_rng")
+    hc_prev = pd.DataFrame({"period": month_labels, "inspectors": hc})
+    hc_prev = hc_prev.iloc[lo_hc-1:hi_hc]
+    fig_hc = px.bar(hc_prev, x="period", y="inspectors", template=TPL,
+                    title="Inspectors Staffed per Month",
+                    color_discrete_sequence=[PC[0]])
+    fig_hc.update_layout(height=260, margin=dict(l=10,r=10,t=36,b=10))
     st.plotly_chart(fig_hc, use_container_width=True)
 
-    # Editable grid
-    section("Edit Headcount (all 120 months)")
+    section("Edit Headcount — All 120 Months")
     hc_df = pd.DataFrame({"Period": month_labels, "Inspectors": hc})
-    edited = st.data_editor(
-        hc_df,
-        column_config={
-            "Period":     st.column_config.TextColumn(disabled=True),
-            "Inspectors": st.column_config.NumberColumn(min_value=0, max_value=10000, step=1),
-        },
-        use_container_width=True,
-        height=500,
-        num_rows="fixed",
-    )
+    edited = st.data_editor(hc_df, column_config={
+        "Period":     st.column_config.TextColumn(disabled=True),
+        "Inspectors": st.column_config.NumberColumn(min_value=0, max_value=10000, step=1),
+    }, use_container_width=True, height=500, num_rows="fixed")
     st.session_state.headcount_plan = edited["Inspectors"].tolist()
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# TAB: RESULTS
+# RESULTS
 # ════════════════════════════════════════════════════════════════════════════
 with tab_results:
     if not results_ready():
-        st.markdown('<div class="info-box">Go to <b>Assumptions</b> tab and click <b>▶ Run / Recalculate</b> to generate results.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="info-box">Click <b>Run Model</b> at the top of the page to generate results.</div>', unsafe_allow_html=True)
         st.stop()
 
     weekly_df, mo_full, qdf_full = st.session_state.results
     a = st.session_state.assumptions
 
-    # Warnings
     n_loc  = weekly_df["warn_loc_maxed"].sum()
-    n_neg  = weekly_df["warn_neg_ebitda"].sum()
     n_mgmt = weekly_df["warn_mgmt_no_insp"].sum()
-    if n_loc:  st.markdown(f'<div class="warn-box">LOC exceeded max line in {n_loc} week(s) — consider raising the LOC limit.</div>', unsafe_allow_html=True)
-    if n_mgmt: st.markdown(f'<div class="warn-box">Salaried management persists with 0 inspectors in {n_mgmt} week(s).</div>', unsafe_allow_html=True)
+    if n_loc:  st.markdown(f'<div class="warn-box">LOC exceeded the max credit line in {n_loc} week(s). Consider raising the maximum credit line.</div>', unsafe_allow_html=True)
+    if n_mgmt: st.markdown(f'<div class="warn-box">Salaried management is active in {n_mgmt} week(s) with 0 inspectors — check your GM start month and headcount plan.</div>', unsafe_allow_html=True)
 
-    # ── Global range filter ──────────────────────────────────────────
     section("Date Range Filter")
-    active_mo = mo_full[mo_full["revenue"] > 0]
-    last_active = int(active_mo["month_idx"].max()) + 1 if not active_mo.empty else 12
-    default_end = min(last_active + 3, 120)
-
-    r_lo, r_hi = st.select_slider(
-        "Show model months",
-        options=list(range(1, 121)),
-        value=(1, default_end),
-        key="results_range",
-    )
-
-    mo  = mo_full[(mo_full["month_idx"] >= r_lo - 1) & (mo_full["month_idx"] <= r_hi - 1)].copy()
-    qdf = qdf_full[(qdf_full["quarter_idx"] >= (r_lo - 1) // 3) & (qdf_full["quarter_idx"] <= (r_hi - 1) // 3)].copy()
-    wdf = weekly_df[(weekly_df["month_idx"] >= r_lo - 1) & (weekly_df["month_idx"] <= r_hi - 1)].copy()
+    mo  = _range_slider("res_rng", mo_full, "Show months")
+    lo_idx = mo["month_idx"].min(); hi_idx = mo["month_idx"].max()
+    qdf = qdf_full[(qdf_full["quarter_idx"] >= lo_idx//3) & (qdf_full["quarter_idx"] <= hi_idx//3)].copy()
+    wdf = weekly_df[(weekly_df["month_idx"] >= lo_idx) & (weekly_df["month_idx"] <= hi_idx)].copy()
 
     st.divider()
-    r1, r2, r3, r4 = st.tabs(["📈 Dashboard", "📅 Monthly", "📆 Quarterly", "🗓️ Weekly"])
+    r1, r2, r3, r4 = st.tabs(["Dashboard", "Monthly", "Quarterly", "Weekly"])
 
-    # ── DASHBOARD ────────────────────────────────────────────────────
+    # ── Dashboard ────────────────────────────────────────────────────
     with r1:
-        section("Cash & LOC Dynamics")
+        section("LOC / AR / Cash")
         fig_loc = go.Figure()
-        fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["loc_end"],
-                                     name="LOC Balance", fill="tozeroy",
-                                     line=dict(color=PLOT_COLORS[3], width=2)))
-        fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["ar_end"],
-                                     name="AR Balance", line=dict(color=PLOT_COLORS[0], width=2)))
-        fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["cash_end"],
-                                     name="Cash", line=dict(color=PLOT_COLORS[1], width=2)))
-        fig_loc.add_hline(y=float(a["max_loc"]), line_dash="dot",
-                          line_color="#E05252", annotation_text="LOC Limit",
-                          annotation_font_color="#E05252")
-        fig_loc.update_layout(template=PLOT_TEMPLATE, height=340,
-                              margin=dict(l=10, r=10, t=10, b=10),
-                              legend=dict(orientation="h", y=-0.2),
-                              yaxis=dict(tickformat="$,.0f"))
+        fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["loc_end"],   name="LOC Balance",
+            fill="tozeroy", line=dict(color=PC[3], width=2)))
+        fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["ar_end"],    name="AR Balance",
+            line=dict(color=PC[0], width=2)))
+        fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["cash_end"],  name="Cash",
+            line=dict(color=PC[1], width=2)))
+        fig_loc.add_hline(y=float(a["max_loc"]), line_dash="dot", line_color=PC[3],
+                          annotation_text="LOC Limit", annotation_font_color=PC[3])
+        fig_loc.update_layout(template=TPL, height=340, margin=dict(l=10,r=10,t=10,b=10),
+                              legend=dict(orientation="h",y=-0.15), yaxis=dict(tickformat="$,.0f"))
         st.plotly_chart(fig_loc, use_container_width=True)
+
+        section("Monthly Cash Flow Waterfall")
+        mo_wf = mo.copy()
+        wf_categories = ["Starting Cash","+ Collections","− Payroll (Hourly)","− Salaried Mgmt","− Overhead","− Interest","+ LOC Draw","− LOC Repay","Ending Cash"]
+        wf_values = [
+            mo_wf["cash_begin"].iloc[0] if len(mo_wf) else 0,
+            mo_wf["collections"].sum(),
+            -mo_wf["hourly_labor"].sum(),
+            -mo_wf["salaried_cost"].sum(),
+            -mo_wf["overhead"].sum(),
+            -mo_wf["interest"].sum(),
+            mo_wf["loc_draw"].sum(),
+            -mo_wf["loc_repay"].sum(),
+            mo_wf["cash_end"].iloc[-1] if len(mo_wf) else 0,
+        ]
+        fig_wf = go.Figure(go.Waterfall(
+            orientation="v", measure=["absolute","relative","relative","relative","relative","relative","relative","relative","total"],
+            x=wf_categories, y=wf_values,
+            connector=dict(line=dict(color="#444")),
+            increasing=dict(marker_color=PC[1]),
+            decreasing=dict(marker_color=PC[3]),
+            totals=dict(marker_color=PC[0]),
+        ))
+        fig_wf.update_layout(template=TPL, height=320, margin=dict(l=10,r=10,t=10,b=10),
+                             yaxis=dict(tickformat="$,.0f"))
+        st.plotly_chart(fig_wf, use_container_width=True)
 
         c1, c2 = st.columns(2)
         with c1:
             section("Revenue vs Cost Stack")
-            fig_rv = _bar(mo, "period",
-                          ["hourly_labor", "salaried_cost", "overhead"],
-                          ["Hourly Labor", "Salaried", "Overhead"],
-                          "Monthly Cost Stack")
-            fig_rv.add_trace(go.Scatter(x=mo["period"], y=mo["revenue"],
-                                        name="Revenue", mode="lines",
-                                        line=dict(color=PLOT_COLORS[1], width=2)))
+            fig_rv = _bar(mo,"period",["hourly_labor","salaried_cost","overhead"],
+                          ["Hourly Labor","Salaried Mgmt","Overhead"],"Monthly Cost Stack")
+            fig_rv.add_trace(go.Scatter(x=mo["period"],y=mo["revenue"],name="Revenue",
+                mode="lines",line=dict(color=PC[1],width=2)))
             st.plotly_chart(fig_rv, use_container_width=True)
-
         with c2:
             section("EBITDA")
-            fig_eb = _line(mo, "period",
-                           ["ebitda", "ebitda_after_interest"],
-                           ["EBITDA (pre-int)", "EBITDA (after int)"],
-                           "Monthly EBITDA")
-            st.plotly_chart(fig_eb, use_container_width=True)
+            st.plotly_chart(_line(mo,"period",["ebitda","ebitda_after_interest"],
+                                  ["EBITDA (pre-interest)","EBITDA (after interest)"],"Monthly EBITDA"),
+                            use_container_width=True)
 
-        section("Margins")
-        fig_mg = _line(mo, "period",
-                       ["ebitda_margin", "ebitda_ai_margin"],
-                       ["EBITDA Margin", "EBITDA Margin (after int)"],
-                       "EBITDA Margins", pct_y=True)
-        st.plotly_chart(fig_mg, use_container_width=True)
+        c3, c4 = st.columns(2)
+        with c3:
+            section("EBITDA Margins")
+            st.plotly_chart(_line(mo,"period",["ebitda_margin","ebitda_ai_margin"],
+                                  ["Margin (pre-int)","Margin (after int)"],"EBITDA Margins",pct_y=True),
+                            use_container_width=True)
+        with c4:
+            section("Headcount by Role")
+            st.plotly_chart(_bar(mo,"period",
+                                 ["inspectors_avg","team_leads_avg","n_opscoord","n_fieldsup","n_regionalmgr"],
+                                 ["Inspectors","Team Leads","Ops Coord","Field Sup","Reg Mgr"],
+                                 "Average Monthly Headcount"),
+                            use_container_width=True)
 
-        section("Headcount by Role")
-        fig_hc2 = _bar(mo, "period",
-                       ["inspectors_avg", "team_leads_avg", "n_opscoord", "n_fieldsup", "n_regionalmgr"],
-                       ["Inspectors", "Team Leads", "Ops Coord", "Field Sup", "Reg Mgr"],
-                       "Average Monthly Headcount")
-        st.plotly_chart(fig_hc2, use_container_width=True)
-
-        # Break-even
         st.divider()
         section("Break-Even Calculator")
-        be_c1, be_c2, be_c3 = st.columns(3)
-        be_nd = be_c1.selectbox("Net Days", [30, 60, 90, 120, 150],
-                                index=1 if int(a["net_days"]) not in [30,60,90,120,150] else
-                                [30,60,90,120,150].index(int(a["net_days"])))
-        if be_c2.button("Find Break-Even", use_container_width=True):
-            with st.spinner("Searching…"):
+        bc1,bc2,bc3 = st.columns(3)
+        be_nd = bc1.selectbox("Net Days for calculation", [30,60,90,120,150],
+                              index=min(1, max(0,[30,60,90,120,150].index(int(a["net_days"]))
+                                                if int(a["net_days"]) in [30,60,90,120,150] else 1)))
+        if bc2.button("Find Minimum Inspectors", use_container_width=True):
+            with st.spinner("Calculating…"):
                 be = find_breakeven_inspectors(a, be_nd)
-            be_c3.success(f"Min inspectors: **{be}** @ Net {be_nd}")
+            bc3.success(f"Minimum inspectors for positive EBITDA (after interest): **{be}** at Net {be_nd}")
 
-        # Export
         st.divider()
-        section("Export")
-        if st.button("Build Excel Export", use_container_width=False):
+        section("Export to Excel")
+        if st.button("Build Excel Export"):
             with st.spinner("Building…"):
-                xlsx = build_excel(a, st.session_state.headcount_plan,
-                                   weekly_df, mo_full, qdf_full)
-            st.download_button("⬇  Download Excel", data=xlsx,
-                               file_name="containment_division_model.xlsx",
-                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                xlsx = build_excel(a, st.session_state.headcount_plan, weekly_df, mo_full, qdf_full)
+            st.download_button("Download Excel", data=xlsx,
+                file_name="containment_division_model.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-    # ── MONTHLY ──────────────────────────────────────────────────────
+    # ── Monthly ──────────────────────────────────────────────────────
     with r2:
-        section("Monthly Summary Table")
-        display_cols = [
-            "period", "inspectors_avg", "team_leads_avg",
-            "revenue", "hourly_labor", "salaried_cost", "overhead", "total_labor",
-            "ebitda", "ebitda_margin",
-            "interest", "ebitda_after_interest", "ebitda_ai_margin",
-            "collections", "ar_end", "loc_end", "cash_end", "peak_loc_to_date",
-        ]
-        _fmt_table(
-            _select(mo, display_cols),
-            dollar_cols=["revenue","hourly_labor","salaried_cost","overhead","total_labor",
-                         "ebitda","interest","ebitda_after_interest",
-                         "collections","ar_end","loc_end","cash_end","peak_loc_to_date"],
-            pct_cols=["ebitda_margin","ebitda_ai_margin"],
-        )
+        dcols = ["period","inspectors_avg","team_leads_avg","revenue","hourly_labor",
+                 "salaried_cost","overhead","total_labor","ebitda","ebitda_margin",
+                 "interest","ebitda_after_interest","ebitda_ai_margin",
+                 "collections","ar_end","loc_end","cash_end","peak_loc_to_date"]
+        _fmt_table(_select(mo,dcols),
+                   dollar_cols=["revenue","hourly_labor","salaried_cost","overhead","total_labor",
+                                "ebitda","interest","ebitda_after_interest",
+                                "collections","ar_end","loc_end","cash_end","peak_loc_to_date"],
+                   pct_cols=["ebitda_margin","ebitda_ai_margin"],
+                   highlight_neg="ebitda_after_interest",
+                   highlight_loc="loc_end", max_loc_val=float(a["max_loc"]))
 
-    # ── QUARTERLY ────────────────────────────────────────────────────
+    # ── Quarterly ────────────────────────────────────────────────────
     with r3:
-        section("Quarterly Summary Table")
-        q_display = [
-            "yr_q", "revenue", "hourly_labor", "salaried_cost", "overhead", "total_labor",
-            "ebitda", "ebitda_margin",
-            "interest", "ebitda_after_interest", "ebitda_ai_margin",
-            "ar_end", "loc_end", "cash_end", "peak_loc_to_date",
-        ]
-        _fmt_table(
-            _select(qdf, q_display),
-            dollar_cols=["revenue","hourly_labor","salaried_cost","overhead","total_labor",
-                         "ebitda","interest","ebitda_after_interest",
-                         "ar_end","loc_end","cash_end","peak_loc_to_date"],
-            pct_cols=["ebitda_margin","ebitda_ai_margin"],
-        )
+        qcols = ["yr_q","revenue","hourly_labor","salaried_cost","overhead","total_labor",
+                 "ebitda","ebitda_margin","interest","ebitda_after_interest","ebitda_ai_margin",
+                 "ar_end","loc_end","cash_end","peak_loc_to_date"]
+        _fmt_table(_select(qdf,qcols),
+                   dollar_cols=["revenue","hourly_labor","salaried_cost","overhead","total_labor",
+                                "ebitda","interest","ebitda_after_interest",
+                                "ar_end","loc_end","cash_end","peak_loc_to_date"],
+                   pct_cols=["ebitda_margin","ebitda_ai_margin"],
+                   highlight_neg="ebitda_after_interest",
+                   highlight_loc="loc_end", max_loc_val=float(a["max_loc"]))
 
-    # ── WEEKLY ───────────────────────────────────────────────────────
+    # ── Weekly ───────────────────────────────────────────────────────
     with r4:
-        # Warnings
         w_neg = wdf["warn_neg_ebitda"].sum()
-        if w_neg:
-            st.markdown(f'<div class="warn-box">Negative EBITDA in {w_neg} week(s) within selected range.</div>', unsafe_allow_html=True)
-
-        w1, w2, w3, w4 = st.tabs(["Headcount & Revenue", "Labor & EBITDA", "AR & Collections", "Cash & LOC"])
-
-        with w1:
-            cols = ["week_start","week_end","inspectors","team_leads",
-                    "n_opscoord","n_fieldsup","n_regionalmgr",
-                    "insp_st_hrs","insp_ot_hrs",
-                    "insp_rev_st","insp_rev_ot","lead_rev_st","lead_rev_ot","revenue_wk"]
-            _fmt_table(_select(wdf, cols),
-                       dollar_cols=["insp_rev_st","insp_rev_ot","lead_rev_st","lead_rev_ot","revenue_wk"])
-
-        with w2:
-            cols = ["week_start","inspectors","team_leads",
-                    "insp_labor_st","insp_labor_ot","lead_labor_st","lead_labor_ot",
-                    "hourly_labor","salaried_wk","overhead_wk","revenue_wk","ebitda_wk"]
-            _fmt_table(_select(wdf, cols),
-                       dollar_cols=["insp_labor_st","insp_labor_ot","lead_labor_st","lead_labor_ot",
-                                    "hourly_labor","salaried_wk","overhead_wk","revenue_wk","ebitda_wk"])
-
-        with w3:
-            cols = ["week_start","week_end","is_month_end",
-                    "revenue_wk","statement_amt","collections","ar_begin","ar_end"]
-            _fmt_table(_select(wdf, cols),
-                       dollar_cols=["revenue_wk","statement_amt","collections","ar_begin","ar_end"])
-
-        with w4:
-            cols = ["week_start","payroll_cash_out","salaried_wk","overhead_wk","interest_paid",
-                    "collections","cash_begin","loc_draw","loc_repay","cash_end","loc_begin","loc_end"]
-            _fmt_table(_select(wdf, cols),
-                       dollar_cols=["payroll_cash_out","salaried_wk","overhead_wk","interest_paid",
-                                    "collections","cash_begin","loc_draw","loc_repay",
-                                    "cash_end","loc_begin","loc_end"])
-
-            # Reconciliation
+        if w_neg: st.markdown(f'<div class="warn-box">Negative EBITDA in {w_neg} week(s) within selected range.</div>', unsafe_allow_html=True)
+        wt1,wt2,wt3,wt4 = st.tabs(["Headcount & Revenue","Labor & EBITDA","AR & Collections","Cash & LOC"])
+        with wt1:
+            _fmt_table(_select(wdf,["week_start","week_end","inspectors","team_leads",
+                "n_opscoord","n_fieldsup","n_regionalmgr","insp_st_hrs","insp_ot_hrs",
+                "insp_rev_st","insp_rev_ot","lead_rev_st","lead_rev_ot","revenue_wk"]),
+                dollar_cols=["insp_rev_st","insp_rev_ot","lead_rev_st","lead_rev_ot","revenue_wk"])
+        with wt2:
+            _fmt_table(_select(wdf,["week_start","inspectors","team_leads",
+                "insp_labor_st","insp_labor_ot","lead_labor_st","lead_labor_ot",
+                "hourly_labor","salaried_wk","overhead_wk","revenue_wk","ebitda_wk"]),
+                dollar_cols=["insp_labor_st","insp_labor_ot","lead_labor_st","lead_labor_ot",
+                             "hourly_labor","salaried_wk","overhead_wk","revenue_wk","ebitda_wk"])
+        with wt3:
+            _fmt_table(_select(wdf,["week_start","week_end","is_month_end",
+                "revenue_wk","statement_amt","collections","ar_begin","ar_end"]),
+                dollar_cols=["revenue_wk","statement_amt","collections","ar_begin","ar_end"])
+        with wt4:
+            _fmt_table(_select(wdf,["week_start","payroll_cash_out","salaried_wk",
+                "overhead_wk","interest_paid","collections",
+                "cash_begin","loc_draw","loc_repay","cash_end","loc_begin","loc_end"]),
+                dollar_cols=["payroll_cash_out","salaried_wk","overhead_wk","interest_paid",
+                             "collections","cash_begin","loc_draw","loc_repay","cash_end","loc_begin","loc_end"])
             max_err = wdf[["check_ar","check_loc","check_cash"]].max().max()
-            if max_err < 0.01:
-                st.success(f"Reconciliation checks pass — max error ${max_err:.4f}")
-            else:
-                st.error(f"Reconciliation error: ${max_err:.2f}")
+            if max_err < 0.01: st.success(f"All reconciliation checks pass — max error ${max_err:.4f}")
+            else: st.error(f"Reconciliation error: ${max_err:.2f}")
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# TAB: SCENARIO SUMMARY
+# SCENARIO SUMMARY
 # ════════════════════════════════════════════════════════════════════════════
 with tab_summary:
     if not results_ready():
-        st.markdown('<div class="info-box">Run the model first from the <b>Assumptions</b> tab.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="info-box">Click <b>Run Model</b> at the top of the page to generate results.</div>', unsafe_allow_html=True)
         st.stop()
 
     weekly_df, mo_full, _ = st.session_state.results
     a = st.session_state.assumptions
 
     section("Date Range Filter")
-    active_mo = mo_full[mo_full["revenue"] > 0]
-    last_active = int(active_mo["month_idx"].max()) + 1 if not active_mo.empty else 12
-    default_end = min(last_active + 3, 120)
-    sr_lo, sr_hi = st.select_slider(
-        "Show months",
-        options=list(range(1, 121)),
-        value=(1, default_end),
-        key="summary_range",
-    )
-    mo = mo_full[(mo_full["month_idx"] >= sr_lo - 1) & (mo_full["month_idx"] <= sr_hi - 1)].copy()
+    mo_s = _range_slider("sum_rng", mo_full, "Show months")
+    lo_s = mo_s["month_idx"].min(); hi_s = mo_s["month_idx"].max()
+    wdf_s = weekly_df[(weekly_df["month_idx"] >= lo_s) & (weekly_df["month_idx"] <= hi_s)].copy()
 
     st.divider()
 
     # ── Income Statement ─────────────────────────────────────────────
     section("Income Statement — Selected Range")
-    tot_rev    = mo["revenue"].sum()
-    tot_hl     = mo["hourly_labor"].sum()
-    tot_sal    = mo["salaried_cost"].sum()
-    tot_ovhd   = mo["overhead"].sum()
-    tot_labor  = tot_hl + tot_sal
-    tot_ebitda = mo["ebitda"].sum()
-    tot_int    = mo["interest"].sum()
-    tot_ebitda_ai = mo["ebitda_after_interest"].sum()
+    tot_rev   = mo_s["revenue"].sum()
+    tot_hl    = mo_s["hourly_labor"].sum()
+    tot_sal   = mo_s["salaried_cost"].sum()
+    tot_ovhd  = mo_s["overhead"].sum()
+    tot_exp   = tot_hl + tot_sal + tot_ovhd
+    tot_eb    = mo_s["ebitda"].sum()
+    tot_int   = mo_s["interest"].sum()
+    tot_eb_ai = mo_s["ebitda_after_interest"].sum()
 
-    is_data = {
-        "Line Item": [
-            "Revenue",
-            "  Hourly Labor (Inspectors + TLs)",
-            "  Salaried Management",
-            "  Overhead",
-            "Total Expenses",
-            "EBITDA (pre-interest)",
-            "  LOC Interest",
-            "EBITDA (after interest)",
-        ],
-        "Amount ($)": [
-            tot_rev, tot_hl, tot_sal, tot_ovhd,
-            tot_labor + tot_ovhd,
-            tot_ebitda, -tot_int, tot_ebitda_ai,
-        ],
-        "% of Revenue": [
-            1.0,
-            tot_hl / tot_rev if tot_rev else 0,
-            tot_sal / tot_rev if tot_rev else 0,
-            tot_ovhd / tot_rev if tot_rev else 0,
-            (tot_labor + tot_ovhd) / tot_rev if tot_rev else 0,
-            tot_ebitda / tot_rev if tot_rev else 0,
-            -tot_int / tot_rev if tot_rev else 0,
-            tot_ebitda_ai / tot_rev if tot_rev else 0,
-        ],
-    }
-    is_df = pd.DataFrame(is_data)
+    is_df = pd.DataFrame({
+        "Line Item": ["Revenue","","  Hourly Labor (Inspectors + Team Leads)","  Salaried Management",
+                      "  Overhead","Total Expenses","","EBITDA (before interest)",
+                      "  LOC Interest Expense","Net Operating Income (EBITDA after interest)"],
+        "Amount":    [tot_rev, None, tot_hl, tot_sal, tot_ovhd, tot_exp, None, tot_eb, -tot_int, tot_eb_ai],
+        "% Revenue": [1.0, None, tot_hl/tot_rev if tot_rev else 0, tot_sal/tot_rev if tot_rev else 0,
+                      tot_ovhd/tot_rev if tot_rev else 0, tot_exp/tot_rev if tot_rev else 0,
+                      None, tot_eb/tot_rev if tot_rev else 0,
+                      -tot_int/tot_rev if tot_rev else 0, tot_eb_ai/tot_rev if tot_rev else 0],
+    })
     st.dataframe(
-        is_df.style
-            .format({"Amount ($)": "${:,.0f}", "% of Revenue": "{:.1%}"})
-            .apply(lambda row: [
-                "font-weight:bold; color:#52D68A" if row["Line Item"] in ("Revenue","EBITDA (after interest)") else
-                "font-weight:bold; color:#E05252" if row["Line Item"] == "Total Expenses" else
-                "font-weight:bold" if row["Line Item"] == "EBITDA (pre-interest)" else ""
-                for _ in row], axis=1),
-        use_container_width=True,
-        height=330,
+        is_df.style.format({"Amount":"${:,.0f}","% Revenue":"{:.1%}"},na_rep="")
+             .apply(lambda row: [
+                 "font-weight:bold; color:#52D68A" if row["Line Item"] in ("Revenue","Net Operating Income (EBITDA after interest)") else
+                 "font-weight:bold; color:#E05252" if row["Line Item"] == "Total Expenses" else
+                 "font-weight:bold" if row["Line Item"] == "EBITDA (before interest)" else ""
+                 for _ in row], axis=1),
+        use_container_width=True, height=360,
     )
 
     st.divider()
 
-    # ── Headcount Breakdown ──────────────────────────────────────────
-    section("Headcount Breakdown — Averages Over Selected Range")
-    hc_rows = {
-        "Role": ["Inspectors", "Team Leads", "Ops Coordinators", "Field Supervisors", "Regional Managers", "GM"],
-        "Avg / Month": [
-            mo["inspectors_avg"].mean(),
-            mo["team_leads_avg"].mean(),
-            mo["n_opscoord"].mean(),
-            mo["n_fieldsup"].mean(),
-            mo["n_regionalmgr"].mean(),
-            (weekly_df[(weekly_df["month_idx"] >= sr_lo-1) & (weekly_df["month_idx"] <= sr_hi-1)]["gm_fte"].mean()),
-        ],
-        "Peak / Month": [
-            mo["inspectors_avg"].max(),
-            mo["team_leads_avg"].max(),
-            mo["n_opscoord"].max(),
-            mo["n_fieldsup"].max(),
-            mo["n_regionalmgr"].max(),
-            1.0 if weekly_df[weekly_df["month_idx"] <= sr_hi-1]["gm_fte"].max() > 0 else 0,
-        ],
-        "Type": ["Hourly", "Hourly", "Salaried", "Salaried", "Salaried", "Salaried"],
-        "Billed to Revenue": ["Yes", "Yes", "No", "No", "No", "No"],
-    }
-    hc_df2 = pd.DataFrame(hc_rows)
-    st.dataframe(
-        hc_df2.style.format({"Avg / Month": "{:.1f}", "Peak / Month": "{:.1f}"}),
-        use_container_width=True, height=260,
-    )
+    # ── Annual P&L ───────────────────────────────────────────────────
+    section("Annual P&L Summary (Year by Year)")
+    annual = mo_full.groupby("year").agg(
+        revenue                =("revenue",               "sum"),
+        hourly_labor           =("hourly_labor",           "sum"),
+        salaried_cost          =("salaried_cost",          "sum"),
+        overhead               =("overhead",               "sum"),
+        ebitda                 =("ebitda",                 "sum"),
+        interest               =("interest",               "sum"),
+        ebitda_after_interest  =("ebitda_after_interest",  "sum"),
+        peak_loc               =("loc_end",                "max"),
+        avg_inspectors         =("inspectors_avg",         "mean"),
+    ).reset_index()
+    annual["total_expenses"]   = annual["hourly_labor"] + annual["salaried_cost"] + annual["overhead"]
+    annual["ebitda_margin"]    = np.where(annual["revenue"]>0, annual["ebitda"]/annual["revenue"], 0)
+    annual["ebitda_ai_margin"] = np.where(annual["revenue"]>0, annual["ebitda_after_interest"]/annual["revenue"], 0)
+    annual["year_label"]       = annual["year"].apply(lambda y: f"Year {y - annual['year'].min() + 1}  ({y})")
+
+    ann_display = annual[["year_label","avg_inspectors","revenue","total_expenses","ebitda","ebitda_margin",
+                           "interest","ebitda_after_interest","ebitda_ai_margin","peak_loc"]].rename(columns={
+        "year_label":"Year","avg_inspectors":"Avg Inspectors","revenue":"Revenue",
+        "total_expenses":"Total Expenses","ebitda":"EBITDA","ebitda_margin":"EBITDA %",
+        "interest":"Interest","ebitda_after_interest":"Net Income","ebitda_ai_margin":"Net %","peak_loc":"Peak LOC"})
+    _fmt_table(ann_display,
+               dollar_cols=["Revenue","Total Expenses","EBITDA","Interest","Net Income","Peak LOC"],
+               pct_cols=["EBITDA %","Net %"],
+               highlight_neg="Net Income")
 
     st.divider()
 
-    # ── Revenue Breakdown ────────────────────────────────────────────
-    section("Revenue Breakdown")
-    c1, c2 = st.columns(2)
+    # ── Headcount ────────────────────────────────────────────────────
+    section("Headcount by Role — Selected Range")
+    gm_avg = wdf_s["gm_fte"].mean() if "gm_fte" in wdf_s.columns else 0
+    hc_data = {
+        "Role":            ["Inspectors","Team Leads","Operations Coordinators","Field Supervisors","Regional Managers","General Manager"],
+        "Type":            ["Hourly","Hourly","Salaried","Salaried","Salaried","Salaried"],
+        "Billed to Client":["Yes","Yes","No","No","No","No"],
+        "Avg per Month":   [mo_s["inspectors_avg"].mean(), mo_s["team_leads_avg"].mean(),
+                            mo_s["n_opscoord"].mean(), mo_s["n_fieldsup"].mean(),
+                            mo_s["n_regionalmgr"].mean(), gm_avg],
+        "Peak in Period":  [mo_s["inspectors_avg"].max(), mo_s["team_leads_avg"].max(),
+                            mo_s["n_opscoord"].max(), mo_s["n_fieldsup"].max(),
+                            mo_s["n_regionalmgr"].max(), 1.0 if gm_avg > 0 else 0],
+    }
+    st.dataframe(pd.DataFrame(hc_data).style.format({"Avg per Month":"{:.1f}","Peak in Period":"{:.1f}"}),
+                 use_container_width=True, height=260)
+
+    st.divider()
+
+    # ── Revenue & Expense pies ────────────────────────────────────────
+    section("Revenue & Expense Breakdown")
+    c1,c2 = st.columns(2)
     with c1:
-        rev_pie = go.Figure(go.Pie(
-            labels=["Inspector ST", "Inspector OT", "Team Lead ST", "Team Lead OT"],
-            values=[mo["insp_rev_st"].sum(), mo["insp_rev_ot"].sum(),
-                    mo["lead_rev_st"].sum(), mo["lead_rev_ot"].sum()],
-            hole=0.45,
-            marker_colors=PLOT_COLORS[:4],
-        ))
-        rev_pie.update_layout(template=PLOT_TEMPLATE, height=300,
-                              title="Revenue by Component",
-                              margin=dict(l=10, r=10, t=40, b=10))
-        st.plotly_chart(rev_pie, use_container_width=True)
-
+        fig_rp = go.Figure(go.Pie(
+            labels=["Inspector Regular Time","Inspector Overtime","Team Lead Regular Time","Team Lead Overtime"],
+            values=[mo_s["insp_rev_st"].sum(), mo_s["insp_rev_ot"].sum(),
+                    mo_s["lead_rev_st"].sum(), mo_s["lead_rev_ot"].sum()],
+            hole=0.42, marker_colors=PC[:4]))
+        fig_rp.update_layout(template=TPL, height=300, title="Revenue by Component",
+                             margin=dict(l=10,r=10,t=40,b=10))
+        st.plotly_chart(fig_rp, use_container_width=True)
     with c2:
-        exp_pie = go.Figure(go.Pie(
-            labels=["Hourly Labor", "Salaried Mgmt", "Overhead"],
+        fig_ep = go.Figure(go.Pie(
+            labels=["Hourly Labor","Salaried Management","Overhead"],
             values=[tot_hl, tot_sal, tot_ovhd],
-            hole=0.45,
-            marker_colors=[PLOT_COLORS[3], PLOT_COLORS[2], PLOT_COLORS[4]],
-        ))
-        exp_pie.update_layout(template=PLOT_TEMPLATE, height=300,
-                              title="Expenses by Component",
-                              margin=dict(l=10, r=10, t=40, b=10))
-        st.plotly_chart(exp_pie, use_container_width=True)
+            hole=0.42, marker_colors=[PC[3],PC[2],PC[4]]))
+        fig_ep.update_layout(template=TPL, height=300, title="Expenses by Component",
+                             margin=dict(l=10,r=10,t=40,b=10))
+        st.plotly_chart(fig_ep, use_container_width=True)
 
-    # ── Monthly trend ────────────────────────────────────────────────
-    section("Revenue vs Net Profit — Monthly Trend")
-    fig_trend = go.Figure()
-    fig_trend.add_trace(go.Bar(x=mo["period"], y=mo["revenue"], name="Revenue",
-                               marker_color=PLOT_COLORS[0], opacity=0.7))
-    fig_trend.add_trace(go.Scatter(x=mo["period"], y=mo["ebitda_after_interest"],
-                                   name="Net Profit (EBITDA AI)", mode="lines+markers",
-                                   line=dict(color=PLOT_COLORS[1], width=2)))
-    fig_trend.add_hline(y=0, line_dash="dot", line_color="#555", line_width=1)
-    fig_trend.update_layout(template=PLOT_TEMPLATE, height=320,
-                            margin=dict(l=10, r=10, t=10, b=10),
-                            legend=dict(orientation="h", y=-0.2),
-                            yaxis=dict(tickformat="$,.0f"))
-    st.plotly_chart(fig_trend, use_container_width=True)
+    # ── Revenue vs Net Income trend ───────────────────────────────────
+    section("Revenue vs Net Income — Monthly Trend")
+    fig_t = go.Figure()
+    fig_t.add_trace(go.Bar(x=mo_s["period"],y=mo_s["revenue"],name="Revenue",
+                           marker_color=PC[0],opacity=0.7))
+    fig_t.add_trace(go.Scatter(x=mo_s["period"],y=mo_s["ebitda_after_interest"],
+                               name="Net Income (EBITDA AI)",mode="lines+markers",
+                               line=dict(color=PC[1],width=2)))
+    fig_t.add_hline(y=0,line_dash="dot",line_color="#444",line_width=1)
+    fig_t.update_layout(template=TPL,height=320,margin=dict(l=10,r=10,t=10,b=10),
+                        legend=dict(orientation="h",y=-0.15),yaxis=dict(tickformat="$,.0f"))
+    st.plotly_chart(fig_t, use_container_width=True)
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# TAB: SENSITIVITY
+# SENSITIVITY ANALYSIS
 # ════════════════════════════════════════════════════════════════════════════
 with tab_sens:
     if not results_ready():
-        st.markdown('<div class="info-box">Run the model first from the <b>Assumptions</b> tab.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="info-box">Click <b>Run Model</b> at the top of the page first.</div>', unsafe_allow_html=True)
         st.stop()
 
     a  = st.session_state.assumptions
     hc = st.session_state.headcount_plan
+    st.caption("Each table re-runs the full 120-month model varying one parameter at a time. All other assumptions stay at current values.")
 
-    st.caption("Each table re-runs the full 120-month model varying one parameter at a time.")
-
-    s1, s2, s3, s4 = st.tabs(["Net Days", "Bill Rate", "Burden %", "OT Hours"])
-
-    def _sens_chart(df, x_col, x_label, y_col, y_label, pct=False):
-        fig = go.Figure(go.Scatter(
-            x=df[x_col], y=df[y_col], mode="lines+markers",
-            line=dict(color=PLOT_COLORS[0], width=2),
-            marker=dict(size=7),
-        ))
-        fig.update_layout(
-            template=PLOT_TEMPLATE, height=280,
-            margin=dict(l=10, r=10, t=30, b=10),
-            xaxis_title=x_label, yaxis_title=y_label,
-            yaxis=dict(tickformat=".1%" if pct else "$,.0f"),
-        )
-        fig.add_hline(y=0, line_dash="dot", line_color="#555", line_width=1)
+    def _sc(df, xc, xl, yc, yl, pct=False):
+        fig = go.Figure(go.Scatter(x=df[xc],y=df[yc],mode="lines+markers",
+            line=dict(color=PC[0],width=2),marker=dict(size=7)))
+        fig.update_layout(template=TPL,height=260,margin=dict(l=10,r=10,t=30,b=10),
+                          xaxis_title=xl,yaxis_title=yl,
+                          yaxis=dict(tickformat=".1%" if pct else "$,.0f"))
+        fig.add_hline(y=0,line_dash="dot",line_color="#444",line_width=1)
         return fig
 
+    s1,s2,s3,s4 = st.tabs(["Customer Payment Terms","Bill Rate","Payroll Burden","Overtime Hours"])
+
     with s1:
-        section("Net Days vs Peak LOC & Interest")
-        nd_vals = [30, 45, 60, 75, 90, 105, 120, 150]
+        section("How payment terms affect your credit line requirement")
+        nd_vals = [30,45,60,75,90,105,120,150]
         with st.spinner("Running…"):
-            nd_df = run_sensitivity(a, hc, "net_days", nd_vals)
-        c1, c2 = st.columns(2)
-        c1.plotly_chart(_sens_chart(nd_df, "value", "Net Days", "peak_loc", "Peak LOC ($)"), use_container_width=True)
-        c2.plotly_chart(_sens_chart(nd_df, "value", "Net Days", "ebitda_ai_margin", "EBITDA Margin (AI)", pct=True), use_container_width=True)
-        _fmt_table(
-            nd_df[["value","peak_loc","annual_interest","ebitda_ai","ebitda_ai_margin"]].rename(columns={
-                "value":"Net Days","peak_loc":"Peak LOC","annual_interest":"Total Interest",
-                "ebitda_ai":"EBITDA (AI)","ebitda_ai_margin":"Margin (AI)"}),
-            dollar_cols=["Peak LOC","Total Interest","EBITDA (AI)"],
-            pct_cols=["Margin (AI)"],
-        )
+            nd_df = run_sensitivity(a,hc,"net_days",nd_vals)
+        c1,c2 = st.columns(2)
+        c1.plotly_chart(_sc(nd_df,"value","Net Days","peak_loc","Peak LOC ($)"), use_container_width=True)
+        c2.plotly_chart(_sc(nd_df,"value","Net Days","ebitda_ai_margin","EBITDA Margin (after interest)",pct=True), use_container_width=True)
+        _fmt_table(nd_df[["value","peak_loc","annual_interest","ebitda_ai","ebitda_ai_margin"]].rename(columns={
+            "value":"Net Days","peak_loc":"Peak LOC","annual_interest":"Total Interest",
+            "ebitda_ai":"EBITDA (AI)","ebitda_ai_margin":"Margin (AI)"}),
+            dollar_cols=["Peak LOC","Total Interest","EBITDA (AI)"],pct_cols=["Margin (AI)"],
+            highlight_neg="EBITDA (AI)")
 
     with s2:
-        section("Bill Rate vs EBITDA Margin & Peak LOC")
-        br_vals = [37.0, 37.5, 38.0, 38.5, 39.0, 39.5, 40.0, 40.5, 41.0, 42.0]
+        section("How bill rate changes affect margin and LOC")
+        br_vals = [37.0,37.5,38.0,38.5,39.0,39.5,40.0,40.5,41.0,42.0]
         with st.spinner("Running…"):
-            br_df = run_sensitivity(a, hc, "st_bill_rate", br_vals)
-        c1, c2 = st.columns(2)
-        c1.plotly_chart(_sens_chart(br_df, "value", "Bill Rate ($/hr)", "ebitda_ai_margin", "EBITDA Margin (AI)", pct=True), use_container_width=True)
-        c2.plotly_chart(_sens_chart(br_df, "value", "Bill Rate ($/hr)", "peak_loc", "Peak LOC ($)"), use_container_width=True)
-        _fmt_table(
-            br_df[["value","ebitda_margin","ebitda_ai_margin","peak_loc","ebitda_ai"]].rename(columns={
-                "value":"Bill Rate","ebitda_margin":"EBITDA Margin","ebitda_ai_margin":"Margin (AI)",
-                "peak_loc":"Peak LOC","ebitda_ai":"EBITDA (AI)"}),
-            dollar_cols=["Peak LOC","EBITDA (AI)"],
-            pct_cols=["EBITDA Margin","Margin (AI)"],
-        )
+            br_df = run_sensitivity(a,hc,"st_bill_rate",br_vals)
+        c1,c2 = st.columns(2)
+        c1.plotly_chart(_sc(br_df,"value","Bill Rate ($/hr)","ebitda_ai_margin","EBITDA Margin (AI)",pct=True), use_container_width=True)
+        c2.plotly_chart(_sc(br_df,"value","Bill Rate ($/hr)","peak_loc","Peak LOC ($)"), use_container_width=True)
+        _fmt_table(br_df[["value","ebitda_margin","ebitda_ai_margin","peak_loc","ebitda_ai"]].rename(columns={
+            "value":"Bill Rate ($/hr)","ebitda_margin":"EBITDA Margin","ebitda_ai_margin":"Margin (AI)",
+            "peak_loc":"Peak LOC","ebitda_ai":"EBITDA (AI)"}),
+            dollar_cols=["Peak LOC","EBITDA (AI)"],pct_cols=["EBITDA Margin","Margin (AI)"])
 
     with s3:
-        section("Burden % vs EBITDA & Peak LOC")
-        burd_vals = [0.20, 0.25, 0.28, 0.30, 0.33, 0.35, 0.38, 0.40]
+        section("How payroll burden rate affects profitability")
+        burd_vals = [0.20,0.25,0.28,0.30,0.33,0.35,0.38,0.40]
         with st.spinner("Running…"):
-            burd_df = run_sensitivity(a, hc, "burden", burd_vals)
-        burd_df["pct"] = burd_df["value"] * 100
-        c1, c2 = st.columns(2)
-        c1.plotly_chart(_sens_chart(burd_df, "pct", "Burden (%)", "ebitda_ai_margin", "EBITDA Margin (AI)", pct=True), use_container_width=True)
-        c2.plotly_chart(_sens_chart(burd_df, "pct", "Burden (%)", "peak_loc", "Peak LOC ($)"), use_container_width=True)
-        _fmt_table(
-            burd_df[["pct","ebitda_ai","ebitda_ai_margin","peak_loc"]].rename(columns={
-                "pct":"Burden (%)","ebitda_ai":"EBITDA (AI)","ebitda_ai_margin":"Margin (AI)","peak_loc":"Peak LOC"}),
-            dollar_cols=["EBITDA (AI)","Peak LOC"],
-            pct_cols=["Margin (AI)"],
-        )
+            burd_df = run_sensitivity(a,hc,"burden",burd_vals)
+        burd_df["pct"] = burd_df["value"]*100
+        c1,c2 = st.columns(2)
+        c1.plotly_chart(_sc(burd_df,"pct","Burden (%)","ebitda_ai_margin","EBITDA Margin (AI)",pct=True), use_container_width=True)
+        c2.plotly_chart(_sc(burd_df,"pct","Burden (%)","peak_loc","Peak LOC ($)"), use_container_width=True)
+        _fmt_table(burd_df[["pct","ebitda_ai","ebitda_ai_margin","peak_loc"]].rename(columns={
+            "pct":"Burden (%)","ebitda_ai":"EBITDA (AI)","ebitda_ai_margin":"Margin (AI)","peak_loc":"Peak LOC"}),
+            dollar_cols=["EBITDA (AI)","Peak LOC"],pct_cols=["Margin (AI)"])
 
     with s4:
-        section("OT Hours vs EBITDA Margin")
-        ot_vals = [0, 2, 4, 6, 8, 10, 12, 15, 20]
+        section("How overtime hours affect revenue and margin")
+        ot_vals = [0,2,4,6,8,10,12,15,20]
         with st.spinner("Running…"):
-            ot_df = run_sensitivity(a, hc, "ot_hours", ot_vals)
-        c1, c2 = st.columns(2)
-        c1.plotly_chart(_sens_chart(ot_df, "value", "OT Hrs/wk", "ebitda_ai_margin", "EBITDA Margin (AI)", pct=True), use_container_width=True)
-        c2.plotly_chart(_sens_chart(ot_df, "value", "OT Hrs/wk", "total_revenue", "Total Revenue ($)"), use_container_width=True)
-        _fmt_table(
-            ot_df[["value","ebitda_margin","ebitda_ai_margin","total_revenue","ebitda_ai"]].rename(columns={
-                "value":"OT Hrs/wk","ebitda_margin":"EBITDA Margin","ebitda_ai_margin":"Margin (AI)",
-                "total_revenue":"Total Revenue","ebitda_ai":"EBITDA (AI)"}),
-            dollar_cols=["Total Revenue","EBITDA (AI)"],
-            pct_cols=["EBITDA Margin","Margin (AI)"],
-        )
+            ot_df = run_sensitivity(a,hc,"ot_hours",ot_vals)
+        c1,c2 = st.columns(2)
+        c1.plotly_chart(_sc(ot_df,"value","OT Hrs/wk","ebitda_ai_margin","EBITDA Margin (AI)",pct=True), use_container_width=True)
+        c2.plotly_chart(_sc(ot_df,"value","OT Hrs/wk","total_revenue","Total Revenue ($)"), use_container_width=True)
+        _fmt_table(ot_df[["value","ebitda_margin","ebitda_ai_margin","total_revenue","ebitda_ai"]].rename(columns={
+            "value":"OT Hrs/wk","ebitda_margin":"EBITDA Margin","ebitda_ai_margin":"Margin (AI)",
+            "total_revenue":"Total Revenue","ebitda_ai":"EBITDA (AI)"}),
+            dollar_cols=["Total Revenue","EBITDA (AI)"],pct_cols=["EBITDA Margin","Margin (AI)"])
 
     st.divider()
     if st.button("Export All + Sensitivity to Excel"):
         with st.spinner("Building…"):
-            sens = {"Sens_NetDays": nd_df, "Sens_BillRate": br_df,
-                    "Sens_Burden": burd_df, "Sens_OTHours": ot_df}
-            xlsx = build_excel(a, hc, weekly_df, mo_full, qdf_full, sens)
-        st.download_button("⬇  Download Excel", data=xlsx,
-                           file_name="containment_division_sensitivity.xlsx",
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            sens = {"Sens_PayTerms":nd_df,"Sens_BillRate":br_df,"Sens_Burden":burd_df,"Sens_OTHours":ot_df}
+            xlsx = build_excel(a,hc,weekly_df,mo_full,qdf_full,sens)
+        st.download_button("Download Excel",data=xlsx,
+            file_name="containment_division_sensitivity.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
