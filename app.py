@@ -745,62 +745,71 @@ with tab_dash:
 
     st.divider()
 
-    # ── Investor verdict ───────────────────────────────────────────────────
-    section("Executive Summary")
-    _mo_peak_idx = int(mo_full["loc_end"].idxmax()) if len(mo_full) else 0
-    _mo_peak_period = mo_full.loc[_mo_peak_idx, "period"] if len(mo_full) else "—"
-
-    # Find first month LOC = 0 after peak (self-funding)
-    _post_peak = mo_full.iloc[_mo_peak_idx:]
-    _self_fund_rows = _post_peak[_post_peak["loc_end"] <= 1]
-    _self_fund = _self_fund_rows.iloc[0]["period"] if len(_self_fund_rows) > 0 else None
-
-    # Steady-state EBITDA (avg of last 12 months)
-    _ss_mo = mo_full.tail(12)
-    _ss_ebitda = float(_ss_mo["ebitda_after_interest"].mean())
-    _ss_annual = _ss_ebitda * 12
-    _total_interest = float(mo_full["interest"].sum())
-    _int_coverage = (_ss_ebitda * 12) / max(1, _total_interest)
-    _ropc = (_ss_annual / _peak) if _peak > 100 else 0
-
-    # Breakeven month (first month ebitda_after_interest > 0 sustained)
-    _profitable_rows = mo_full[mo_full["ebitda_after_interest"] > 0]
-    _be_month = _profitable_rows.iloc[0]["period"] if len(_profitable_rows) else "Not in model period"
-
-    if _ss_ebitda > 0 and _peak > 0:
-        st.success(
-            f"**This scenario requires {fmt_dollar(_peak)} in peak credit** (Month {_mo_peak_period}), "
-            f"becomes profitable in **{_be_month}**, "
-            f"and generates **{fmt_dollar(_ss_ebitda)}/month** net after interest at steady state "
-            f"— a **{_ropc:.1f}x annualized return** on peak capital deployed."
-        )
-    elif _ss_ebitda <= 0:
-        st.error(
-            f"**This scenario does not reach profitability** at steady state. "
-            f"Net income at steady state: {fmt_dollar(_ss_ebitda)}/month. "
-            "Review bill rate, burden, or headcount assumptions."
-        )
-
-    # KPI row
-    v1, v2, v3, v4, v5, v6 = st.columns(6)
-    kpi(v1, "Peak Credit Needed",    fmt_dollar(_peak),          _mo_peak_period)
-    kpi(v2, "First Profitable Month", _be_month,                 "net after interest")
-    kpi(v3, "Steady-State / Month",   fmt_dollar(_ss_ebitda),    "net income (last 12 mo)")
-    kpi(v4, "10-Year Net Income",     fmt_dollar(mo_full["ebitda_after_interest"].sum()), "after interest")
-    kpi(v5, "Total Interest Cost",    fmt_dollar(_total_interest), "credit line cost")
-    kpi(v6, "Return on Peak Capital", f"{_ropc:.1f}x",            "ann. EBITDA ÷ peak LOC")
-
-    if _self_fund:
-        st.caption(f"Credit line fully repaid (division self-funding): **{_self_fund}**  ·  EBITDA/Interest coverage: **{_int_coverage:.1f}x**")
-
-    st.divider()
-
-    # ── Date range filter ──────────────────────────────────────────────────
+    # ── Date range filter (ABOVE summary so all KPIs respect selected range) ──
     section("Date Range")
     mo = _range_slider("dash_rng", mo_full)
     lo_idx = mo["month_idx"].min(); hi_idx = mo["month_idx"].max()
     qdf = qdf_full[(qdf_full["quarter_idx"] >= lo_idx // 3) & (qdf_full["quarter_idx"] <= hi_idx // 3)].copy()
     wdf = weekly_df[(weekly_df["month_idx"] >= lo_idx) & (weekly_df["month_idx"] <= hi_idx)].copy()
+
+    # ── Investor verdict (all metrics scoped to selected range) ────────────
+    section("Executive Summary")
+
+    # Dynamic period label for KPI heading
+    _n_months = len(mo)
+    if _n_months <= 24:
+        _period_label = f"{_n_months}-Month"
+    elif _n_months % 12 == 0:
+        _period_label = f"{_n_months // 12}-Year"
+    else:
+        _period_label = f"{_n_months // 12}Y {_n_months % 12}M"
+
+    _mo_peak_idx = int(mo["loc_end"].idxmax()) if len(mo) else 0
+    _mo_peak_period = mo.loc[_mo_peak_idx, "period"] if len(mo) else "—"
+
+    # Find first month LOC = 0 after peak (self-funding) within selected range
+    _post_peak = mo.loc[_mo_peak_idx:]
+    _self_fund_rows = _post_peak[_post_peak["loc_end"] <= 1]
+    _self_fund = _self_fund_rows.iloc[0]["period"] if len(_self_fund_rows) > 0 else None
+
+    # Steady-state EBITDA: avg of last 12 months of selected range
+    _ss_mo = mo.tail(12)
+    _ss_ebitda = float(_ss_mo["ebitda_after_interest"].mean())
+    _ss_annual = _ss_ebitda * 12
+    _total_interest = float(mo["interest"].sum())
+    _peak_rng = float(mo["loc_end"].max()) if len(mo) else 0
+    _int_coverage = (_ss_ebitda * 12) / max(1, _total_interest)
+    _ropc = (_ss_annual / _peak_rng) if _peak_rng > 100 else 0
+
+    # Breakeven: first month in selected range where net income > 0
+    _profitable_rows = mo[mo["ebitda_after_interest"] > 0]
+    _be_month = _profitable_rows.iloc[0]["period"] if len(_profitable_rows) else "Not in range"
+
+    if _ss_ebitda > 0 and _peak_rng > 0:
+        st.success(
+            f"**Selected range ({_period_label}): peak credit required is {fmt_dollar(_peak_rng)}** ({_mo_peak_period}), "
+            f"first profitable month **{_be_month}**, "
+            f"and steady-state net income **{fmt_dollar(_ss_ebitda)}/month** after interest "
+            f"— **{_ropc:.1f}x annualized return** on peak capital deployed."
+        )
+    elif _ss_ebitda <= 0:
+        st.error(
+            f"**No profitability in selected range.** "
+            f"Net income at end of range: {fmt_dollar(_ss_ebitda)}/month. "
+            "Extend the range, increase bill rate, or reduce burden."
+        )
+
+    # KPI row — all scoped to selected range
+    v1, v2, v3, v4, v5, v6 = st.columns(6)
+    kpi(v1, "Peak Credit Needed",      fmt_dollar(_peak_rng),                            _mo_peak_period)
+    kpi(v2, "First Profitable Month",  _be_month,                                        "net after interest")
+    kpi(v3, "Steady-State / Month",    fmt_dollar(_ss_ebitda),                           "net income (last 12 mo of range)")
+    kpi(v4, f"{_period_label} Net Income", fmt_dollar(mo["ebitda_after_interest"].sum()), "after interest — selected range")
+    kpi(v5, "Total Interest Cost",     fmt_dollar(_total_interest),                      "credit line cost — selected range")
+    kpi(v6, "Return on Peak Capital",  f"{_ropc:.1f}x",                                  "ann. EBITDA ÷ peak LOC")
+
+    if _self_fund:
+        st.caption(f"Credit line fully repaid (division self-funding): **{_self_fund}**  ·  EBITDA/Interest coverage: **{_int_coverage:.1f}x**")
 
     st.divider()
 
