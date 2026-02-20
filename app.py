@@ -229,47 +229,62 @@ def _build_hc(rules):
     return hc
 
 PRESETS = {
-    "Conservative Launch": {
+    "Conservative": {
         "assumptions": {**default_assumptions(),
-            "st_bill_rate": 38.0, "ot_hours": 5, "burden": 0.33,
-            "team_lead_ratio": 15, "lead_wage": 24.0, "lead_ot_hours": 5,
-            "net_days": 90, "apr": 0.095, "max_loc": 500_000,
+            "st_bill_rate": 35.0, "ot_hours": 8, "burden": 0.35,
+            "team_lead_ratio": 12, "lead_wage": 22.0, "lead_ot_hours": 8,
+            "net_days": 120, "apr": 0.095, "max_loc": 750_000,
+            "cash_buffer": 25_000, "initial_cash": 0,
             "software_monthly": 300, "recruiting_monthly": 500,
-            "insurance_monthly": 1000, "travel_monthly": 300},
-        "headcount": _build_hc([(1,3,10),(4,6,15),(7,12,20),(13,24,25)]),
+            "insurance_monthly": 1_000, "travel_monthly": 300},
+        "headcount": _build_hc([(1,1,5),(2,2,10),(3,3,15),(4,6,15),(7,120,15)]),
     },
-    "Aggressive Growth": {
+    "Base Case": {
         "assumptions": {**default_assumptions(),
-            "st_bill_rate": 41.0, "ot_hours": 15, "inspector_wage": 21.0,
-            "lead_wage": 26.0, "lead_ot_hours": 15,
+            "st_bill_rate": 39.0, "ot_hours": 10, "burden": 0.30,
+            "team_lead_ratio": 12, "lead_wage": 25.0, "lead_ot_hours": 10,
+            "net_days": 90, "apr": 0.085, "max_loc": 1_000_000,
+            "cash_buffer": 25_000, "initial_cash": 0,
+            "software_monthly": 500, "recruiting_monthly": 1_000,
+            "insurance_monthly": 1_500, "travel_monthly": 500},
+        "headcount": _build_hc([(1,1,5),(2,2,10),(3,3,15),(4,4,20),(5,5,25),(6,120,30)]),
+    },
+    "Aggressive": {
+        "assumptions": {**default_assumptions(),
+            "st_bill_rate": 42.0, "ot_hours": 15, "burden": 0.28,
+            "inspector_wage": 21.0, "lead_wage": 26.0, "lead_ot_hours": 15,
+            "team_lead_ratio": 12,
             "gm_loaded_annual": 130_000, "opscoord_base": 70_000,
             "fieldsup_base": 75_000, "regionalmgr_base": 120_000,
-            "net_days": 120, "max_loc": 2_000_000, "cash_buffer": 50_000,
-            "initial_cash": 100_000, "software_monthly": 1000,
-            "recruiting_monthly": 3000, "insurance_monthly": 2500,
-            "travel_monthly": 1500},
+            "net_days": 60, "apr": 0.075, "max_loc": 2_000_000,
+            "cash_buffer": 50_000, "initial_cash": 50_000,
+            "software_monthly": 1_000, "recruiting_monthly": 3_000,
+            "insurance_monthly": 2_500, "travel_monthly": 1_500},
         "headcount": _build_hc([(1,2,25),(3,4,50),(5,6,75),(7,9,100),
                                  (10,12,125),(13,24,150),(25,60,175)]),
     },
-    "Steady State": {
-        "assumptions": {**default_assumptions(),
-            "st_bill_rate": 39.5, "ot_hours": 8, "inspector_wage": 20.5,
-            "lead_ot_hours": 8, "gm_loaded_annual": 120_000,
-            "opscoord_base": 67_000, "fieldsup_base": 72_000,
-            "regionalmgr_base": 115_000, "net_days": 45, "apr": 0.075,
-            "max_loc": 750_000, "cash_buffer": 50_000, "initial_cash": 50_000,
-            "software_monthly": 500, "recruiting_monthly": 750,
-            "insurance_monthly": 1500, "travel_monthly": 500},
-        "headcount": [60] * 120,
-    },
 }
+
+# ── Scenario drift detection ───────────────────────────────────────────────
+if "active_preset" not in st.session_state: st.session_state.active_preset = "Base Case"
+if "preset_assumptions" not in st.session_state: st.session_state.preset_assumptions = None
+
+def _is_modified():
+    """Returns True if current assumptions differ from the loaded preset's assumptions."""
+    if st.session_state.preset_assumptions is None:
+        return False
+    cur = {k: str(v) for k, v in st.session_state.assumptions.items()}
+    ref = {k: str(v) for k, v in st.session_state.preset_assumptions.items()}
+    return cur != ref
 
 # ── Auto-bootstrap on first load ──────────────────────────────────────────────
 if not st.session_state.bootstrapped:
-    p = PRESETS["Steady State"]
-    st.session_state.assumptions    = p["assumptions"].copy()
-    st.session_state.headcount_plan = p["headcount"].copy()
-    st.session_state.bootstrapped   = True
+    p = PRESETS["Base Case"]
+    st.session_state.assumptions       = p["assumptions"].copy()
+    st.session_state.headcount_plan    = p["headcount"].copy()
+    st.session_state.active_preset     = "Base Case"
+    st.session_state.preset_assumptions = p["assumptions"].copy()
+    st.session_state.bootstrapped      = True
     run_and_store()
 
 
@@ -287,15 +302,23 @@ st.markdown("""
 
 ctrl1, ctrl2, ctrl3 = st.columns([3, 1, 2])
 with ctrl1:
+    _preset_label = st.session_state.get("active_preset", "Base Case")
+    if _is_modified():
+        _preset_label = f"{_preset_label} (Modified)"
     preset_choice = st.selectbox(
-        "Scenario preset", ["— load preset —"] + list(PRESETS.keys()),
-        key="top_preset"
+        "Scenario", ["— load preset —"] + list(PRESETS.keys()),
+        key="top_preset",
+        help=f"Active: {_preset_label}"
     )
     if preset_choice != "— load preset —":
         p = PRESETS[preset_choice]
-        st.session_state.assumptions    = p["assumptions"].copy()
-        st.session_state.headcount_plan = p["headcount"].copy()
+        st.session_state.assumptions        = p["assumptions"].copy()
+        st.session_state.headcount_plan     = p["headcount"].copy()
+        st.session_state.active_preset      = preset_choice
+        st.session_state.preset_assumptions = p["assumptions"].copy()
         st.rerun()
+    if _is_modified():
+        st.caption(f"*{_preset_label}*")
 with ctrl2:
     if st.button("▶  Run", type="primary", use_container_width=True):
         run_and_store()
@@ -768,6 +791,49 @@ with tab_dash:
         f"Dotted vertical lines mark when each management layer is first triggered. "
         f"Credit limit line at {fmt_dollar(float(a['max_loc']))}."
     )
+
+    # ── Cumulative Cash Flow ───────────────────────────────────────────────
+    section("Cumulative Cash Flow — When Does the Division Self-Fund?")
+    mo_cf = mo.copy()
+    mo_cf["cumulative_ni"] = mo_cf["ebitda_after_interest"].cumsum()
+    mo_cf["cumulative_collections"] = mo_cf["collections"].cumsum()
+    mo_cf["cumulative_labor"] = (mo_cf["hourly_labor"] + mo_cf["salaried_cost"] + mo_cf["overhead"] + mo_cf["interest"]).cumsum()
+
+    fig_cf = go.Figure()
+    fig_cf.add_trace(go.Scatter(
+        x=mo_cf["period"], y=mo_cf["cumulative_ni"],
+        name="Cumulative Net Income", mode="lines",
+        line=dict(color=PC[1], width=2.5),
+        fill="tozeroy",
+        fillcolor="rgba(16,185,129,0.07)",
+    ))
+    fig_cf.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1.5,
+                     annotation_text="Break-Even", annotation_font_color="#EF4444",
+                     annotation_position="bottom right")
+
+    # Annotate zero crossing
+    _pos_rows = mo_cf[mo_cf["cumulative_ni"] > 0]
+    if len(_pos_rows):
+        _cross_period = _pos_rows.iloc[0]["period"]
+        _cross_val    = float(_pos_rows.iloc[0]["cumulative_ni"])
+        fig_cf.add_vline(x=_cross_period, line_dash="dot", line_color=PC[1], line_width=1,
+                         annotation_text=f"Cumulative breakeven: {_cross_period}",
+                         annotation_font_color=PC[1], annotation_position="top left")
+
+    fig_cf.update_layout(
+        template=TPL, height=300, margin=dict(l=10, r=10, t=10, b=10),
+        legend=dict(orientation="h", y=-0.2),
+        yaxis=dict(tickformat="$,.0f", title="Cumulative Net Income ($)"),
+    )
+    st.plotly_chart(fig_cf, use_container_width=True)
+    _cum_final = float(mo_cf["cumulative_ni"].iloc[-1]) if len(mo_cf) else 0
+    st.caption(
+        f"Chart shows running total of net income after interest over the selected period. "
+        f"Red line = break-even. "
+        f"Cumulative total at end of selected range: **{fmt_dollar(_cum_final)}**."
+    )
+
+    st.divider()
 
     # ── Cash Flow Waterfall ────────────────────────────────────────────────
     section("Cash Flow Summary — Selected Period")
@@ -1314,6 +1380,79 @@ with tab_sum:
                         legend=dict(orientation="h", y=-0.2), yaxis=dict(tickformat="$,.0f"))
     st.plotly_chart(fig_t, use_container_width=True)
 
+    st.divider()
+
+    # ── Investor Q&A ──────────────────────────────────────────────────────
+    section("Key Investor Questions — Direct Answers")
+    st.caption(
+        "This section answers the four questions a capital allocator asks before committing to this division."
+    )
+
+    _peak2       = float(mo_full["loc_end"].max()) if len(mo_full) else 0
+    _peak_mo2    = mo_full.loc[mo_full["loc_end"].idxmax(), "period"] if len(mo_full) else "—"
+    _ss_ni2      = float(mo_full.tail(12)["ebitda_after_interest"].mean())
+    _tot_int2    = float(mo_full["interest"].sum())
+    _yr1_ni2     = float(mo_full[mo_full["month_idx"] < 12]["ebitda_after_interest"].sum())
+    _ropc2       = (_ss_ni2 * 12 / _peak2) if _peak2 > 100 else 0
+    _be_rows2    = mo_full[mo_full["ebitda_after_interest"] > 0]
+    _be_mo2      = _be_rows2.iloc[0]["period"] if len(_be_rows2) else "Not reached"
+    _int_cov2    = (_ss_ni2 * 12 + _tot_int2) / max(1, _tot_int2)  # EBITDA/Interest
+    _max_insp    = int(mo_full["inspectors_avg"].max())
+
+    iq1, iq2 = st.columns(2)
+
+    with iq1:
+        st.markdown("**Does it work and is it competitive?**")
+        if _ss_ni2 > 0:
+            st.success(
+                f"Yes — at steady state the division generates **{fmt_dollar(_ss_ni2)}/month** "
+                f"net after interest ({fmt_dollar(_ss_ni2 * 12)}/year). "
+                f"It reaches profitability in **{_be_mo2}**. "
+                f"Year 1 net income: **{fmt_dollar(_yr1_ni2)}**."
+            )
+        else:
+            st.error(
+                f"Not yet — steady-state net income is **{fmt_dollar(_ss_ni2)}/month**. "
+                "Adjust bill rate, burden, or headcount to reach profitability."
+            )
+
+        st.markdown("**How big can this become inside OpSource?**")
+        st.info(
+            f"At **{_max_insp} peak inspectors**, this scenario generates "
+            f"**{fmt_dollar(mo_full['revenue'].max())}/month** in peak revenue. "
+            f"Scaling to 150–200 inspectors is achievable within 24–36 months with "
+            f"the right supervisor layering and credit facility. Each additional inspector "
+            f"at current rates adds **{fmt_dollar(float(a.get('st_bill_rate', 39)) * (float(a.get('st_hours', 40)) + float(a.get('ot_hours', 10)) * float(a.get('ot_bill_premium', 1.5))) * 52 / 12):,.0f}/month** in annualized revenue."
+        )
+
+    with iq2:
+        st.markdown("**What capital is required and what is the cost of money?**")
+        _max_loc3 = float(a.get("max_loc", 1_000_000))
+        _apr3 = float(a.get("apr", 0.085))
+        if _peak2 <= _max_loc3:
+            st.success(
+                f"Peak credit draw: **{fmt_dollar(_peak2)}** in **{_peak_mo2}** — within your "
+                f"**{fmt_dollar(_max_loc3)}** facility. "
+                f"Total 10-year interest cost: **{fmt_dollar(_tot_int2)}** at {_apr3:.1%} APR. "
+                f"EBITDA/Interest coverage at steady state: **{_int_cov2:.1f}x**. "
+                f"Return on peak capital: **{_ropc2:.1f}x** annualized."
+            )
+        else:
+            st.error(
+                f"Peak draw **{fmt_dollar(_peak2)}** exceeds your **{fmt_dollar(_max_loc3)}** facility. "
+                f"Increase the credit line or reduce terms/headcount ramp."
+            )
+
+        st.markdown("**Can the team execute without owner involvement?**")
+        st.info(
+            f"Yes — the model includes a fully-loaded GM at "
+            f"**{fmt_dollar(float(a.get('gm_loaded_annual', 117_000)) / 12)}/month** "
+            f"responsible for day-to-day operations, plus automatic supervisor layering "
+            f"(1 Field Sup per {int(a.get('fieldsup_span', 25))} inspectors, "
+            f"1 Ops Coord per {int(a.get('opscoord_span', 75))}). "
+            "Owner role is capital allocation and performance review only."
+        )
+
 
 # ════════════════════════════════════════════════════════════════════════════
 # SENSITIVITY ANALYSIS
@@ -1504,7 +1643,7 @@ with tab_sens:
         "Green = healthy, red = danger. Run time: ~10–20 seconds."
     )
 
-    hm1, hm2 = st.tabs(["Bill Rate × Burden → Net Margin", "Net Days × Inspectors → Peak LOC"])
+    hm1, hm2, hm3 = st.tabs(["Bill Rate × Burden → Net Margin", "Net Days × Inspectors → Peak LOC", "Bill Rate × Net Days → Interest Cost"])
 
     with hm1:
         if st.button("Run Heatmap: Bill Rate × Burden", use_container_width=True):
@@ -1555,6 +1694,37 @@ with tab_sens:
                                 fmt="$,.0f", reverse=True)
             st.plotly_chart(fig_hm2, use_container_width=True)
             st.caption("Red = higher credit draw required. Green = lower funding need.")
+
+    with hm3:
+        if st.button("Run Heatmap: Bill Rate × Net Days", use_container_width=True):
+            bill_rates3  = [37.0, 38.0, 39.0, 40.0, 41.0, 42.0]
+            net_days3    = [30, 45, 60, 90, 120, 150]
+            rows3 = []
+            prog3 = st.progress(0)
+            total3 = len(bill_rates3) * len(net_days3)
+            done3  = 0
+            with st.spinner("Running heatmap…"):
+                for br3 in bill_rates3:
+                    for nd3 in net_days3:
+                        _a3 = a.copy(); _a3["st_bill_rate"] = br3; _a3["net_days"] = nd3
+                        _df3 = run_sensitivity(_a3, hc, "st_bill_rate", [br3])
+                        rows3.append({
+                            "Bill Rate": f"${br3:.0f}",
+                            "Net Days": str(nd3),
+                            "Annual Interest": float(_df3["annual_interest"].iloc[0]),
+                        })
+                        done3 += 1
+                        prog3.progress(done3 / total3)
+            prog3.empty()
+            hm_df3 = pd.DataFrame(rows3)
+            fig_hm3 = _heatmap(hm_df3, "Bill Rate", "Net Days", "Annual Interest",
+                                "Annual Interest Cost — Bill Rate × Net Days",
+                                fmt="$,.0f", reverse=True)
+            st.plotly_chart(fig_hm3, use_container_width=True)
+            st.caption(
+                "Red = higher interest cost (longer terms or lower revenue reduces ability to repay LOC). "
+                "Green = lower interest cost. Higher bill rates generate more cash to repay the line faster."
+            )
 
     st.divider()
     if st.button("Export Full Report + Sensitivity to Excel"):
