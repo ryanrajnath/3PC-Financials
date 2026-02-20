@@ -385,71 +385,171 @@ with tab_assume:
     st.divider()
 
     # ── Billing & Inspector Pay ──────────────────────────────────────
-    section("Billing & Inspector Pay")
+    section("What You Charge Customers & What You Pay Inspectors")
     c1, c2, c3, c4 = st.columns(4)
-    a["st_bill_rate"]      = c1.number_input("ST Bill Rate ($/hr)",        value=float(a["st_bill_rate"]),      step=0.5,  format="%.2f")
-    a["ot_bill_premium"]   = c2.number_input("OT Bill Premium (×)",        value=float(a["ot_bill_premium"]),   step=0.1,  format="%.1f")
-    a["st_hours"]          = c3.number_input("ST Hrs/wk · Inspector",      value=int(a["st_hours"]),            step=1,    format="%d")
-    a["ot_hours"]          = c4.number_input("OT Hrs/wk · Inspector",      value=int(a["ot_hours"]),            step=1,    format="%d")
+    a["st_bill_rate"]      = c1.number_input(
+        "Regular-Time Bill Rate ($/hr)",
+        value=float(a["st_bill_rate"]), step=0.5, format="%.2f",
+        help="The hourly rate you charge the client for each inspector during regular (straight-time) hours.")
+    a["ot_bill_premium"]   = c2.number_input(
+        "Overtime Bill Multiplier",
+        value=float(a["ot_bill_premium"]), step=0.1, format="%.1f",
+        help="OT hours are billed at this multiple of the regular rate. Default 1.5× means OT bills at $58.50/hr if regular is $39/hr.")
+    a["st_hours"]          = c3.number_input(
+        "Regular Hours per Inspector per Week",
+        value=int(a["st_hours"]), step=1, format="%d",
+        help="Standard work hours per inspector per week, not counting overtime. Typically 40.")
+    a["ot_hours"]          = c4.number_input(
+        "Overtime Hours per Inspector per Week",
+        value=int(a["ot_hours"]), step=1, format="%d",
+        help="Overtime hours per inspector per week. These are billed and paid at the OT multiplier. Set to 0 if no planned OT.")
 
     c5, c6, c7, c8 = st.columns(4)
-    a["inspector_wage"]    = c5.number_input("Inspector Base Wage ($/hr)", value=float(a["inspector_wage"]),    step=0.5,  format="%.2f")
-    a["ot_pay_multiplier"] = c6.number_input("OT Pay Multiplier (×)",      value=float(a["ot_pay_multiplier"]), step=0.1,  format="%.1f")
-    a["burden"]            = c7.number_input("Burden % (e.g. 0.30)",       value=float(a["burden"]),            step=0.01, format="%.2f")
-    a["net_days"]          = c8.number_input("Net Days (AR lag)",          value=int(a["net_days"]),            step=5,    format="%d")
+    a["inspector_wage"]    = c5.number_input(
+        "Inspector Hourly Wage ($/hr)",
+        value=float(a["inspector_wage"]), step=0.5, format="%.2f",
+        help="What you pay each inspector per regular hour, before burden (taxes/benefits).")
+    a["ot_pay_multiplier"] = c6.number_input(
+        "Overtime Pay Multiplier",
+        value=float(a["ot_pay_multiplier"]), step=0.1, format="%.1f",
+        help="Inspectors are paid this multiple of their wage for OT hours. Default 1.5× is standard (time-and-a-half).")
+    a["burden"]            = c7.number_input(
+        "Payroll Burden Rate (e.g. 0.30 = 30%)",
+        value=float(a["burden"]), step=0.01, format="%.2f",
+        help="The percentage added on top of wages to cover payroll taxes, workers comp, and benefits. Enter as a decimal — 0.30 means 30%.")
+    a["net_days"]          = c8.number_input(
+        "Customer Payment Terms (Days After Month-End)",
+        value=int(a["net_days"]), step=5, format="%d",
+        help="How many days after receiving their monthly statement customers typically pay. Net 60 is common in this industry. This drives how long you need to borrow on your line of credit.")
 
     # ── Team Leads ───────────────────────────────────────────────────
-    section("Team Leads")
+    section("Team Leads — Hourly, Billed to Customer")
+    st.caption("Team leads are hourly workers (not salaried). They are counted in your billable hours and billed to the customer at the same rates as inspectors.")
     c1, c2, c3, c4 = st.columns(4)
-    a["team_lead_ratio"]   = c1.number_input("Inspectors per TL",          value=int(a["team_lead_ratio"]),     step=1,   format="%d")
-    a["lead_wage"]         = c2.number_input("TL Base Wage ($/hr)",        value=float(a["lead_wage"]),         step=0.5, format="%.2f")
-    a["lead_st_hours"]     = c3.number_input("TL ST Hrs/wk",               value=int(a["lead_st_hours"]),       step=1,   format="%d")
-    a["lead_ot_hours"]     = c4.number_input("TL OT Hrs/wk",               value=int(a["lead_ot_hours"]),       step=1,   format="%d")
+    a["team_lead_ratio"]   = c1.number_input(
+        "Inspectors per Team Lead",
+        value=int(a["team_lead_ratio"]), step=1, format="%d",
+        help="One team lead is added for every N inspectors. Default is 1 per 12. If you have 25 inspectors, the model adds 3 team leads (⌈25/12⌉).")
+    a["lead_wage"]         = c2.number_input(
+        "Team Lead Hourly Wage ($/hr)",
+        value=float(a["lead_wage"]), step=0.5, format="%.2f",
+        help="Base hourly pay for team leads before burden. Typically higher than inspector wage.")
+    a["lead_st_hours"]     = c3.number_input(
+        "Team Lead Regular Hours/Week",
+        value=int(a["lead_st_hours"]), step=1, format="%d",
+        help="Regular (straight-time) hours worked per team lead per week.")
+    a["lead_ot_hours"]     = c4.number_input(
+        "Team Lead Overtime Hours/Week",
+        value=int(a["lead_ot_hours"]), step=1, format="%d",
+        help="Overtime hours per team lead per week. Set to 0 if team leads don't work OT.")
 
     # ── Management ───────────────────────────────────────────────────
-    section("Management — Salaries & Spans")
+    section("Salaried Management — Auto-Scaled by Headcount")
+    st.caption("These roles are salaried and activate automatically as your inspector count grows. The model adds one role for every N inspectors based on the thresholds below.")
     c1, c2, c3, c4 = st.columns(4)
-    a["gm_loaded_annual"]  = c1.number_input("GM Loaded Annual $",         value=float(a["gm_loaded_annual"]),  step=1000., format="%.0f")
-    a["opscoord_base"]     = c2.number_input("Ops Coordinator Base $",     value=float(a["opscoord_base"]),     step=1000., format="%.0f")
-    a["fieldsup_base"]     = c3.number_input("Field Supervisor Base $",    value=float(a["fieldsup_base"]),     step=1000., format="%.0f")
-    a["regionalmgr_base"]  = c4.number_input("Regional Manager Base $",    value=float(a["regionalmgr_base"]),  step=1000., format="%.0f")
+    a["gm_loaded_annual"]  = c1.number_input(
+        "General Manager — Total Annual Cost ($)",
+        value=float(a["gm_loaded_annual"]), step=1000., format="%.0f",
+        help="The fully-loaded annual cost of the GM including salary, benefits, and taxes. Already fully burdened — do NOT add burden again. Default $117,000.")
+    a["opscoord_base"]     = c2.number_input(
+        "Operations Coordinator — Base Annual Salary ($)",
+        value=float(a["opscoord_base"]), step=1000., format="%.0f",
+        help="Base salary for an Ops Coordinator. The management burden % below is applied on top. Ops Coordinators handle scheduling, dispatch, and field support.")
+    a["fieldsup_base"]     = c3.number_input(
+        "Field Supervisor — Base Annual Salary ($)",
+        value=float(a["fieldsup_base"]), step=1000., format="%.0f",
+        help="Base salary for a Field Supervisor. Management burden is applied on top. Field Supervisors directly oversee inspector crews in the field.")
+    a["regionalmgr_base"]  = c4.number_input(
+        "Regional Manager — Base Annual Salary ($)",
+        value=float(a["regionalmgr_base"]), step=1000., format="%.0f",
+        help="Base salary for a Regional Manager. Management burden is applied on top. Regional Managers oversee multiple field supervisors across a geography.")
 
     c5, c6, c7, c8 = st.columns(4)
-    a["mgmt_burden"]       = c5.number_input("Mgmt Burden %",              value=float(a["mgmt_burden"]),       step=0.01, format="%.2f")
-    a["opscoord_span"]     = c6.number_input("Ops Coord Span",             value=int(a["opscoord_span"]),       step=5,    format="%d")
-    a["fieldsup_span"]     = c7.number_input("Field Sup Span",             value=int(a["fieldsup_span"]),       step=5,    format="%d")
-    a["regionalmgr_span"]  = c8.number_input("Reg Mgr Span",               value=int(a["regionalmgr_span"]),    step=5,    format="%d")
+    a["mgmt_burden"]       = c5.number_input(
+        "Management Benefit & Tax Rate (e.g. 0.25 = 25%)",
+        value=float(a["mgmt_burden"]), step=0.01, format="%.2f",
+        help="Burden rate applied to salaried management base salaries (not the GM — GM is already fully loaded). Covers employer taxes and benefits. Enter as decimal.")
+    a["opscoord_span"]     = c6.number_input(
+        "Inspectors per Operations Coordinator",
+        value=int(a["opscoord_span"]), step=5, format="%d",
+        help="The model adds 1 Ops Coordinator for every N inspectors. At 75 inspectors you get 1, at 150 you get 2, etc. Adjust based on your management structure.")
+    a["fieldsup_span"]     = c7.number_input(
+        "Inspectors per Field Supervisor",
+        value=int(a["fieldsup_span"]), step=5, format="%d",
+        help="The model adds 1 Field Supervisor for every N inspectors. Default is 1 per 60 — meaning a supervisor covers up to 60 workers in the field.")
+    a["regionalmgr_span"]  = c8.number_input(
+        "Inspectors per Regional Manager",
+        value=int(a["regionalmgr_span"]), step=5, format="%d",
+        help="The model adds 1 Regional Manager for every N inspectors. Default is 1 per 175. You likely won't need one until you're staffing 175+ inspectors.")
 
     c9, c10 = st.columns(4)[:2]
-    a["gm_start_month"]    = c9.number_input("GM Start Month #",           value=int(a["gm_start_month"]),      step=1,    format="%d")
-    a["gm_ramp_months"]    = c10.number_input("GM Ramp Months (0.5 FTE)", value=int(a["gm_ramp_months"]),      step=1,    format="%d")
+    a["gm_start_month"]    = c9.number_input(
+        "Month to Hire the GM (model month #)",
+        value=int(a["gm_start_month"]), step=1, format="%d",
+        help="Which month of the model the GM starts. Month 1 = the very first month. Set to a later month if you plan to delay the GM hire.")
+    a["gm_ramp_months"]    = c10.number_input(
+        "GM Part-Time Ramp Period (months at half cost)",
+        value=int(a["gm_ramp_months"]), step=1, format="%d",
+        help="Number of months the GM is part-time (0.5 FTE) before going full-time. Set to 0 if the GM starts full-time immediately.")
 
     # ── LOC ──────────────────────────────────────────────────────────
-    section("Line of Credit")
+    section("Line of Credit (LOC) — Funding the AR Gap")
+    st.caption("Because customers pay 60–120 days after month-end, you need a credit line to cover payroll in the meantime. The model draws and repays this automatically.")
     c1, c2, c3, c4 = st.columns(4)
-    a["apr"]               = c1.number_input("APR (e.g. 0.085)",           value=float(a["apr"]),               step=0.005, format="%.3f")
-    a["max_loc"]           = c2.number_input("Max LOC Limit $",            value=float(a["max_loc"]),           step=50000., format="%.0f")
-    a["initial_cash"]      = c3.number_input("Initial Cash $",             value=float(a["initial_cash"]),      step=5000.,  format="%.0f")
-    a["cash_buffer"]       = c4.number_input("Min Cash Buffer $",          value=float(a["cash_buffer"]),       step=5000.,  format="%.0f")
-    a["auto_paydown"]      = st.checkbox("Auto Paydown ON (repay LOC when cash exceeds buffer)", value=bool(a["auto_paydown"]))
-    a["start_date"]        = st.date_input("Model Start Date", value=a["start_date"])
+    a["apr"]               = c1.number_input(
+        "Annual Interest Rate on LOC (e.g. 0.085 = 8.5%)",
+        value=float(a["apr"]), step=0.005, format="%.3f",
+        help="The annual interest rate your bank charges on the line of credit balance. Enter as a decimal — 0.085 = 8.5%. Interest is calculated monthly on the average balance.")
+    a["max_loc"]           = c2.number_input(
+        "Maximum Credit Line Amount ($)",
+        value=float(a["max_loc"]), step=50000., format="%.0f",
+        help="The maximum amount you can borrow on the line of credit. The model warns you if it needs more than this. Default $1,000,000.")
+    a["initial_cash"]      = c3.number_input(
+        "Starting Cash Balance ($)",
+        value=float(a["initial_cash"]), step=5000., format="%.0f",
+        help="Cash on hand at the start of the model. If you're starting from zero, leave at $0.")
+    a["cash_buffer"]       = c4.number_input(
+        "Minimum Cash Buffer to Keep On Hand ($)",
+        value=float(a["cash_buffer"]), step=5000., format="%.0f",
+        help="The model maintains at least this much cash at all times by drawing the LOC if needed. Default $25,000 — acts as a safety cushion.")
+    a["auto_paydown"]      = st.checkbox(
+        "Automatically repay the credit line when cash exceeds the buffer",
+        value=bool(a["auto_paydown"]),
+        help="When ON: any cash above the buffer is automatically swept to pay down the LOC, reducing interest cost. When OFF: LOC is only drawn when needed, never proactively repaid.")
+    a["start_date"]        = st.date_input("Model Start Date", value=a["start_date"],
+                                            help="The first day of the model. All weeks and months are calculated forward from this date.")
 
     # ── Overhead ─────────────────────────────────────────────────────
-    section("Monthly Overhead")
+    section("Fixed Monthly Overhead Costs")
+    st.caption("These costs are incurred every month regardless of inspector count.")
     c1, c2, c3, c4 = st.columns(4)
-    a["software_monthly"]   = c1.number_input("Software ($/mo)",   value=float(a["software_monthly"]),   step=100., format="%.0f")
-    a["recruiting_monthly"] = c2.number_input("Recruiting ($/mo)", value=float(a["recruiting_monthly"]), step=100., format="%.0f")
-    a["insurance_monthly"]  = c3.number_input("Insurance ($/mo)",  value=float(a["insurance_monthly"]),  step=100., format="%.0f")
-    a["travel_monthly"]     = c4.number_input("Travel ($/mo)",     value=float(a["travel_monthly"]),     step=100., format="%.0f")
+    a["software_monthly"]   = c1.number_input("Software & Tech ($/mo)",
+        value=float(a["software_monthly"]), step=100., format="%.0f",
+        help="Monthly cost for software tools — scheduling, time tracking, reporting, etc.")
+    a["recruiting_monthly"] = c2.number_input("Recruiting & Hiring ($/mo)",
+        value=float(a["recruiting_monthly"]), step=100., format="%.0f",
+        help="Monthly spend on job boards, recruiters, background checks, and onboarding.")
+    a["insurance_monthly"]  = c3.number_input("Insurance ($/mo)",
+        value=float(a["insurance_monthly"]), step=100., format="%.0f",
+        help="Monthly insurance costs not already included in burden — general liability, E&O, etc.")
+    a["travel_monthly"]     = c4.number_input("Travel & Field Expenses ($/mo)",
+        value=float(a["travel_monthly"]), step=100., format="%.0f",
+        help="Monthly travel, mileage, lodging, and miscellaneous field expenses.")
 
-    ca_mode = st.radio("Corporate Allocation", ["fixed", "pct_revenue"],
+    ca_mode = st.radio("Corporate / Parent Company Allocation",
+                       ["Fixed monthly amount", "Percentage of revenue"],
                        index=0 if a["corp_alloc_mode"] == "fixed" else 1,
-                       horizontal=True)
-    a["corp_alloc_mode"] = ca_mode
-    if ca_mode == "fixed":
-        a["corp_alloc_fixed"] = st.number_input("Corp Alloc ($/mo)", value=float(a["corp_alloc_fixed"]), step=500., format="%.0f")
+                       horizontal=True,
+                       help="Whether to charge a fixed overhead allocation from the parent company or a % of revenue. Default is $0 since this division is inside OpSource.")
+    a["corp_alloc_mode"] = "fixed" if ca_mode == "Fixed monthly amount" else "pct_revenue"
+    if a["corp_alloc_mode"] == "fixed":
+        a["corp_alloc_fixed"] = st.number_input("Corporate Allocation ($/mo)",
+            value=float(a["corp_alloc_fixed"]), step=500., format="%.0f",
+            help="Fixed monthly charge from the parent company. Default $0.")
     else:
-        a["corp_alloc_pct"]   = st.number_input("Corp Alloc (% revenue)", value=float(a["corp_alloc_pct"]), step=0.005, format="%.3f")
+        a["corp_alloc_pct"]   = st.number_input("Corporate Allocation (% of Revenue)",
+            value=float(a["corp_alloc_pct"]), step=0.005, format="%.3f",
+            help="Percentage of revenue charged by the parent company. Enter as decimal — 0.05 = 5%.")
 
     st.session_state.assumptions = a
 
