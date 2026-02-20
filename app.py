@@ -264,15 +264,10 @@ def _fmt_table(df, dollar_cols=None, pct_cols=None, highlight_neg=None,
         styled = styled.apply(_row_style, axis=1)
     st.dataframe(styled, use_container_width=True, height=height)
 
-def _range_slider(key, mo, label="Date range"):
-    active = mo[mo["revenue"] > 0]
-    last   = int(active["month_idx"].max()) + 1 if not active.empty else 12
-    hi_def = min(last + 3, len(mo))
-    lo, hi = st.select_slider(
-        label, options=list(range(1, len(mo) + 1)),
-        value=(1, hi_def), key=key,
-        help="Filter charts and tables to this month range."
-    )
+def _apply_range(mo):
+    """Apply the universal date range stored in session state to a monthly dataframe."""
+    lo = st.session_state.get("global_range_lo", 1)
+    hi = st.session_state.get("global_range_hi", len(mo))
     return mo[(mo["month_idx"] >= lo - 1) & (mo["month_idx"] <= hi - 1)]
 
 
@@ -387,14 +382,49 @@ with ctrl3:
 
 if results_ready():
     _, mo_h, _ = st.session_state.results
+
+    # ── Universal date range slider (controls ALL tabs) ────────────────────
+    _active = mo_h[mo_h["revenue"] > 0]
+    _last   = int(_active["month_idx"].max()) + 1 if not _active.empty else 12
+    _hi_def = min(_last + 3, len(mo_h))
+    if "global_range_lo" not in st.session_state:
+        st.session_state.global_range_lo = 1
+    if "global_range_hi" not in st.session_state:
+        st.session_state.global_range_hi = _hi_def
+
+    _rlo, _rhi = st.select_slider(
+        "Date Range — applies to all tabs",
+        options=list(range(1, len(mo_h) + 1)),
+        value=(st.session_state.global_range_lo, st.session_state.global_range_hi),
+        key="global_range_slider",
+        help="Slide to zoom any range of months. Every chart, table, and KPI card across all tabs updates instantly.",
+        label_visibility="collapsed",
+    )
+    st.session_state.global_range_lo = _rlo
+    st.session_state.global_range_hi = _rhi
+
+    # Period label for the selected range
+    _sel_months = _rhi - _rlo + 1
+    if _sel_months <= 24:
+        _rng_label = f"M{_rlo} – M{_rhi} ({_sel_months} months)"
+    elif _sel_months % 12 == 0:
+        _rng_label = f"M{_rlo} – M{_rhi} ({_sel_months // 12} years)"
+    else:
+        _rng_label = f"M{_rlo} – M{_rhi} ({_sel_months // 12}Y {_sel_months % 12}M)"
+    st.caption(f"📅 Showing **{_rng_label}** across all tabs")
+
+    # Top-level KPI bar — scoped to selected range
+    mo_top = _apply_range(mo_h)
     k1, k2, k3, k4, k5 = st.columns(5)
-    peak_mo = mo_h.loc[mo_h["loc_end"].idxmax(), "period"] if mo_h["loc_end"].max() > 0 else "—"
-    kpi(k1, "Peak Credit Line",      fmt_dollar(mo_h["loc_end"].max()),                    peak_mo)
-    kpi(k2, "10-Year Revenue",        fmt_dollar(mo_h["revenue"].sum()),                    "billed (accrual)")
-    kpi(k3, "10-Year Net Income",     fmt_dollar(mo_h["ebitda_after_interest"].sum()),       "after interest")
-    kpi(k4, "Total Borrowing Cost",   fmt_dollar(mo_h["interest"].sum()),                   "credit line interest")
-    yr1 = mo_h[mo_h["month_idx"] < 12]
-    kpi(k5, "Year 1 Net Income",      fmt_dollar(yr1["ebitda_after_interest"].sum()),        "first 12 months")
+    peak_mo = mo_top.loc[mo_top["loc_end"].idxmax(), "period"] if mo_top["loc_end"].max() > 0 else "—"
+    _n_mo_top = len(mo_top)
+    _lbl_top  = f"{_n_mo_top}-Mo" if _n_mo_top <= 24 else (f"{_n_mo_top//12}-Yr" if _n_mo_top % 12 == 0 else f"{_n_mo_top//12}Y{_n_mo_top%12}M")
+    kpi(k1, "Peak Credit Line",          fmt_dollar(mo_top["loc_end"].max()),                     peak_mo)
+    kpi(k2, f"{_lbl_top} Revenue",       fmt_dollar(mo_top["revenue"].sum()),                     "billed (accrual)")
+    kpi(k3, f"{_lbl_top} Net Income",    fmt_dollar(mo_top["ebitda_after_interest"].sum()),        "after interest")
+    kpi(k4, "Total Borrowing Cost",      fmt_dollar(mo_top["interest"].sum()),                    "credit line interest")
+    yr1 = mo_top[mo_top["month_idx"] < _rlo + 11]
+    kpi(k5, "Year 1 Net Income",         fmt_dollar(yr1["ebitda_after_interest"].sum()),           "first 12 months of range")
     st.divider()
 
 
@@ -809,9 +839,8 @@ with tab_dash:
 
     st.divider()
 
-    # ── Date range filter (ABOVE summary so all KPIs respect selected range) ──
-    section("Date Range")
-    mo = _range_slider("dash_rng", mo_full)
+    # Apply universal date range
+    mo = _apply_range(mo_full)
     lo_idx = mo["month_idx"].min(); hi_idx = mo["month_idx"].max()
     qdf = qdf_full[(qdf_full["quarter_idx"] >= lo_idx // 3) & (qdf_full["quarter_idx"] <= hi_idx // 3)].copy()
     wdf = weekly_df[(weekly_df["month_idx"] >= lo_idx) & (weekly_df["month_idx"] <= hi_idx)].copy()
@@ -1156,13 +1185,10 @@ with tab_fin:
     weekly_df, mo_full, qdf_full = st.session_state.results
     a = st.session_state.assumptions
 
-    section("Date Range")
-    mo = _range_slider("fin_rng", mo_full)
+    mo = _apply_range(mo_full)
     lo_idx = mo["month_idx"].min(); hi_idx = mo["month_idx"].max()
     qdf = qdf_full[(qdf_full["quarter_idx"] >= lo_idx // 3) & (qdf_full["quarter_idx"] <= hi_idx // 3)].copy()
     wdf = weekly_df[(weekly_df["month_idx"] >= lo_idx) & (weekly_df["month_idx"] <= hi_idx)].copy()
-
-    st.divider()
 
     f1, f2, f3 = st.tabs(["Monthly", "Quarterly", "Weekly Detail"])
 
@@ -1313,8 +1339,7 @@ with tab_sum:
     weekly_df, mo_full, _ = st.session_state.results
     a = st.session_state.assumptions
 
-    section("Date Range")
-    mo_s = _range_slider("sum_rng", mo_full)
+    mo_s = _apply_range(mo_full)
     lo_s = mo_s["month_idx"].min(); hi_s = mo_s["month_idx"].max()
     wdf_s = weekly_df[(weekly_df["month_idx"] >= lo_s) & (weekly_df["month_idx"] <= hi_s)].copy()
 
