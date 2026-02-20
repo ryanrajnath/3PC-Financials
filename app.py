@@ -346,7 +346,10 @@ The model automatically adds salaried management as your inspector count grows:
 - 1 Ops Coordinator per 75 inspectors
 - 1 Field Supervisor per 60 inspectors
 - 1 Regional Manager per 175 inspectors
-- GM is active from Month 1 (configurable)
+- GM is active from Month 1 at full cost
+
+**What is management turnover cost?**
+In third-party containment, management roles turn over at above-average rates (35% for Ops Coordinators, 25% for Field Supervisors, 18% for Regional Managers per BLS/SHRM data). The model applies a per-hire replacement cost (recruiting, screening, ramp time) prorated weekly based on active headcount. This is separate from base salary and visible in Assumptions → Management Turnover.
 
 **What are team leads?**
 Team leads are hourly workers (not salaried). They supervise inspector crews in the field, are burdened like inspectors, and their hours are billed to the customer at the same rates as inspectors.
@@ -451,18 +454,85 @@ with tab_assume:
         a["regionalmgr_span"]  = c8.number_input("Inspectors per Regional Manager", value=int(a["regionalmgr_span"]), step=5, format="%d",
             help="One Regional Manager per N inspectors. Default 175 — you likely won't need one for a while.")
 
-        c9,c10 = st.columns(4)[:2]
-        a["gm_start_month"]    = c9.number_input("Month to Hire the GM (model month #)", value=int(a["gm_start_month"]), step=1, format="%d",
-            help="Which model month the GM starts. Month 1 = first month of the model. Delay if you're not hiring a GM right away.")
-        a["gm_ramp_months"]    = c10.number_input("GM Part-Time Ramp Period (months at half cost)", value=int(a["gm_ramp_months"]), step=1, format="%d",
-            help="Months the GM is part-time (half cost) before going full-time. Set 0 if the GM starts full-time immediately.")
-
         # Live preview
         p1,p2,p3,p4 = st.columns(4)
         preview(p1, f"GM weekly cost: ${a['gm_loaded_annual']/52:,.0f}")
         preview(p2, f"Ops Coord fully loaded: ${_ops_loaded:,.0f}/yr")
         preview(p3, f"Field Sup fully loaded: ${_fsup_loaded:,.0f}/yr")
         preview(p4, f"Reg Mgr fully loaded: ${_rmgr_loaded:,.0f}/yr")
+
+    # ── Management Turnover ──────────────────────────────────────────
+    _ops_to_mo   = a.get("opscoord_turnover",    0.35)   * a.get("opscoord_replace_cost",    8_000) / 12
+    _fsup_to_mo  = a.get("fieldsup_turnover",    0.25)   * a.get("fieldsup_replace_cost",   12_000) / 12
+    _rmgr_to_mo  = a.get("regionalmgr_turnover", 0.18)   * a.get("regionalmgr_replace_cost",25_000) / 12
+    _to_total_mo = _ops_to_mo + _fsup_to_mo + _rmgr_to_mo
+
+    with st.expander(f"Management Turnover & Recruiting Cost  ·  Est. ${_to_total_mo:,.0f}/mo per active headcount set"):
+        st.caption(
+            "Third-party containment and inspection operations have above-average management turnover "
+            "due to demanding field conditions, irregular hours, and a competitive labor market for "
+            "qualified supervisors. These costs model the recruiting, onboarding, and ramp-up expense "
+            "each time a management role is backfilled. The model prorates this monthly — it scales "
+            "automatically as you add more roles."
+        )
+        st.markdown("""
+**Industry benchmarks (BLS JOLTS + SHRM 2024 data — staffing/field operations sector):**
+- Operations Coordinators: ~30–40% annual turnover (scheduling stress, limited advancement)
+- Field Supervisors: ~22–28% (physically demanding, often poached by competitors)
+- Regional Managers: ~15–20% (better comp & authority, but still competitive market)
+
+*Replacement cost includes: job board advertising, background/drug screen, recruiter time or fee, and ~4–8 weeks of reduced productivity during ramp-up.*
+""")
+        st.divider()
+
+        c1,c2,c3 = st.columns(3)
+        with c1:
+            st.markdown("**Operations Coordinator**")
+            a["opscoord_turnover"]     = st.number_input("Annual Turnover Rate (e.g. 0.35 = 35%)",
+                value=float(a.get("opscoord_turnover", 0.35)), step=0.01, format="%.2f",
+                key="oc_to",
+                help="What fraction of your Ops Coordinator headcount turns over each year. "
+                     "At 35%, a team of 2 Ops Coordinators loses ~0.7 people/year on average.")
+            a["opscoord_replace_cost"] = st.number_input("Replacement Cost per Hire ($)",
+                value=float(a.get("opscoord_replace_cost", 8_000)), step=500., format="%.0f",
+                key="oc_rc",
+                help="Total cost to replace one Ops Coordinator: job board post (~$500), "
+                     "background/drug screen (~$200), HR/manager time (~2 weeks), "
+                     "and 4 weeks at partial productivity. Industry avg ~$8,000.")
+            preview(st.columns(1)[0], f"Est. ${a['opscoord_turnover']*a.get('opscoord_replace_cost',8000)/12:,.0f}/mo per Ops Coordinator")
+
+        with c2:
+            st.markdown("**Field Supervisor**")
+            a["fieldsup_turnover"]     = st.number_input("Annual Turnover Rate (e.g. 0.25 = 25%)",
+                value=float(a.get("fieldsup_turnover", 0.25)), step=0.01, format="%.2f",
+                key="fs_to",
+                help="Annual turnover rate for Field Supervisors. At 25%, you replace ~1 in 4 "
+                     "supervisors per year. Field roles in containment are physically demanding "
+                     "and supervisors are frequently recruited by OEMs or tier-1 suppliers.")
+            a["fieldsup_replace_cost"] = st.number_input("Replacement Cost per Hire ($)",
+                value=float(a.get("fieldsup_replace_cost", 12_000)), step=500., format="%.0f",
+                key="fs_rc",
+                help="Total replacement cost per Field Supervisor. Higher than Ops Coord because "
+                     "the role requires hands-on technical experience in automotive quality or "
+                     "containment. Includes recruiting time, possible agency fee, and ramp. "
+                     "Industry avg ~$12,000.")
+            preview(st.columns(1)[0], f"Est. ${a['fieldsup_turnover']*a.get('fieldsup_replace_cost',12000)/12:,.0f}/mo per Field Supervisor")
+
+        with c3:
+            st.markdown("**Regional Manager**")
+            a["regionalmgr_turnover"]     = st.number_input("Annual Turnover Rate (e.g. 0.18 = 18%)",
+                value=float(a.get("regionalmgr_turnover", 0.18)), step=0.01, format="%.2f",
+                key="rm_to",
+                help="Annual turnover rate for Regional Managers. Lower than field roles — "
+                     "better compensation and strategic responsibility improve retention. "
+                     "At 18%, you replace a Regional Manager roughly every 5–6 years.")
+            a["regionalmgr_replace_cost"] = st.number_input("Replacement Cost per Hire ($)",
+                value=float(a.get("regionalmgr_replace_cost", 25_000)), step=1000., format="%.0f",
+                key="rm_rc",
+                help="Replacement cost per Regional Manager. At this level, you often need a "
+                     "third-party recruiter (15–20% of base salary = $16–22K) plus ramp time. "
+                     "Total all-in cost typically $22–28K. Industry avg ~$25,000.")
+            preview(st.columns(1)[0], f"Est. ${a['regionalmgr_turnover']*a.get('regionalmgr_replace_cost',25000)/12:,.0f}/mo per Regional Manager")
 
     # ── LOC ──────────────────────────────────────────────────────────
     _mo_int_est = (a["apr"]/12) * a["max_loc"]
@@ -524,10 +594,15 @@ with tab_hc:
 
     section("Bulk Fill")
     c1,c2,c3,c4 = st.columns(4)
-    fv = c1.number_input("Inspectors", 0, 10000, 25, step=5, key="fv")
-    ff = c2.number_input("From month", 1, 120,   1,  step=1, key="ff")
-    ft = c3.number_input("To month",   1, 120,   12, step=1, key="ft")
-    if c4.button("Apply Fill", use_container_width=True):
+    fv = c1.number_input("Number of Inspectors", 0, 10000, 25, step=5, key="fv",
+        help="How many inspectors to staff during this range. Team leads and all management "
+             "are calculated automatically from this number.")
+    ff = c2.number_input("From Month #", 1, 120, 1, step=1, key="ff",
+        help="First model month to fill (1 = the first month of your start date).")
+    ft = c3.number_input("To Month #",   1, 120, 12, step=1, key="ft",
+        help="Last model month to fill (inclusive). Month 12 = end of Year 1, Month 120 = end of Year 10.")
+    if c4.button("Apply Fill", use_container_width=True,
+                 help="Overwrites inspector counts for the selected month range with the number above."):
         for i in range(int(ff)-1, int(ft)): hc[i] = int(fv)
         st.session_state.headcount_plan = hc
         st.rerun()
@@ -657,7 +732,10 @@ with tab_results:
         bc1,bc2,bc3 = st.columns(3)
         be_nd = bc1.selectbox("Net Days for calculation", [30,60,90,120,150],
                               index=min(1, max(0,[30,60,90,120,150].index(int(a["net_days"]))
-                                                if int(a["net_days"]) in [30,60,90,120,150] else 1)))
+                                                if int(a["net_days"]) in [30,60,90,120,150] else 1)),
+                              help="Payment terms to assume for this break-even calculation. "
+                                   "Longer terms require more inspectors to break even because "
+                                   "LOC interest costs increase.")
         if bc2.button("Find Minimum Inspectors", use_container_width=True):
             with st.spinner("Calculating…"):
                 be = find_breakeven_inspectors(a, be_nd)
@@ -675,11 +753,11 @@ with tab_results:
     # ── Monthly ──────────────────────────────────────────────────────
     with r2:
         dcols = ["period","inspectors_avg","team_leads_avg","revenue","hourly_labor",
-                 "salaried_cost","overhead","total_labor","ebitda","ebitda_margin",
+                 "salaried_cost","turnover_cost","overhead","total_labor","ebitda","ebitda_margin",
                  "interest","ebitda_after_interest","ebitda_ai_margin",
                  "collections","ar_end","loc_end","cash_end","peak_loc_to_date"]
         _fmt_table(_select(mo,dcols),
-                   dollar_cols=["revenue","hourly_labor","salaried_cost","overhead","total_labor",
+                   dollar_cols=["revenue","hourly_labor","salaried_cost","turnover_cost","overhead","total_labor",
                                 "ebitda","interest","ebitda_after_interest",
                                 "collections","ar_end","loc_end","cash_end","peak_loc_to_date"],
                    pct_cols=["ebitda_margin","ebitda_ai_margin"],
@@ -753,6 +831,7 @@ with tab_summary:
     tot_rev   = mo_s["revenue"].sum()
     tot_hl    = mo_s["hourly_labor"].sum()
     tot_sal   = mo_s["salaried_cost"].sum()
+    tot_to    = mo_s["turnover_cost"].sum() if "turnover_cost" in mo_s.columns else 0.0
     tot_ovhd  = mo_s["overhead"].sum()
     tot_exp   = tot_hl + tot_sal + tot_ovhd
     tot_eb    = mo_s["ebitda"].sum()
@@ -760,12 +839,19 @@ with tab_summary:
     tot_eb_ai = mo_s["ebitda_after_interest"].sum()
 
     is_df = pd.DataFrame({
-        "Line Item": ["Revenue","","  Hourly Labor (Inspectors + Team Leads)","  Salaried Management",
-                      "  Overhead","Total Expenses","","EBITDA (before interest)",
+        "Line Item": ["Revenue","",
+                      "  Hourly Labor (Inspectors + Team Leads)","  Salaried Management",
+                      "  Mgmt Turnover & Recruiting","  Fixed Overhead",
+                      "Total Expenses","","EBITDA (before interest)",
                       "  LOC Interest Expense","Net Operating Income (EBITDA after interest)"],
-        "Amount":    [tot_rev, None, tot_hl, tot_sal, tot_ovhd, tot_exp, None, tot_eb, -tot_int, tot_eb_ai],
-        "% Revenue": [1.0, None, tot_hl/tot_rev if tot_rev else 0, tot_sal/tot_rev if tot_rev else 0,
-                      tot_ovhd/tot_rev if tot_rev else 0, tot_exp/tot_rev if tot_rev else 0,
+        "Amount":    [tot_rev, None, tot_hl, tot_sal, tot_to,
+                      tot_ovhd - tot_to, tot_exp, None, tot_eb, -tot_int, tot_eb_ai],
+        "% Revenue": [1.0, None,
+                      tot_hl/tot_rev if tot_rev else 0,
+                      tot_sal/tot_rev if tot_rev else 0,
+                      tot_to/tot_rev if tot_rev else 0,
+                      (tot_ovhd-tot_to)/tot_rev if tot_rev else 0,
+                      tot_exp/tot_rev if tot_rev else 0,
                       None, tot_eb/tot_rev if tot_rev else 0,
                       -tot_int/tot_rev if tot_rev else 0, tot_eb_ai/tot_rev if tot_rev else 0],
     })
@@ -783,17 +869,19 @@ with tab_summary:
 
     # ── Annual P&L ───────────────────────────────────────────────────
     section("Annual P&L Summary (Year by Year)")
-    annual = mo_full.groupby("year").agg(
-        revenue                =("revenue",               "sum"),
-        hourly_labor           =("hourly_labor",           "sum"),
-        salaried_cost          =("salaried_cost",          "sum"),
-        overhead               =("overhead",               "sum"),
-        ebitda                 =("ebitda",                 "sum"),
-        interest               =("interest",               "sum"),
-        ebitda_after_interest  =("ebitda_after_interest",  "sum"),
-        peak_loc               =("loc_end",                "max"),
-        avg_inspectors         =("inspectors_avg",         "mean"),
-    ).reset_index()
+    _to_agg = {"turnover_cost": ("turnover_cost", "sum")} if "turnover_cost" in mo_full.columns else {}
+    annual = mo_full.groupby("year").agg(**{
+        "revenue":               ("revenue",               "sum"),
+        "hourly_labor":          ("hourly_labor",           "sum"),
+        "salaried_cost":         ("salaried_cost",          "sum"),
+        "overhead":              ("overhead",               "sum"),
+        "ebitda":                ("ebitda",                 "sum"),
+        "interest":              ("interest",               "sum"),
+        "ebitda_after_interest": ("ebitda_after_interest",  "sum"),
+        "peak_loc":              ("loc_end",                "max"),
+        "avg_inspectors":        ("inspectors_avg",         "mean"),
+        **_to_agg,
+    }).reset_index()
     annual["total_expenses"]   = annual["hourly_labor"] + annual["salaried_cost"] + annual["overhead"]
     annual["ebitda_margin"]    = np.where(annual["revenue"]>0, annual["ebitda"]/annual["revenue"], 0)
     annual["ebitda_ai_margin"] = np.where(annual["revenue"]>0, annual["ebitda_after_interest"]/annual["revenue"], 0)

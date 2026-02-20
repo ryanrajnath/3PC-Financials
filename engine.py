@@ -76,6 +76,16 @@ def default_assumptions() -> dict:
         "corp_alloc_mode": "fixed",   # "fixed" | "pct_revenue"
         "corp_alloc_fixed": 0.0,
         "corp_alloc_pct": 0.0,
+        # Management turnover (industry data — third-party containment/inspection staffing)
+        # BLS JOLTS + SHRM benchmarks: office/scheduling ops ~35%, field supervision ~25%,
+        # regional management ~18% annual voluntary + involuntary combined.
+        "opscoord_turnover":    0.35,   # annual rate — scheduling/ops roles turn frequently
+        "fieldsup_turnover":    0.25,   # field supervisors — moderate, better pay = better retention
+        "regionalmgr_turnover": 0.18,   # regional managers — senior, harder to replace = lower rate
+        # Replacement cost per hire: recruiting fee / job board + background check + 4–8 wks ramp
+        "opscoord_replace_cost":    8_000.0,   # ~12% of $65K base
+        "fieldsup_replace_cost":   12_000.0,   # ~17% of $70K base
+        "regionalmgr_replace_cost":25_000.0,   # ~23% of $110K base (may use recruiter)
     }
 
 
@@ -133,6 +143,14 @@ def run_model(assumptions: dict, headcount_plan: list):
     ops_span  = int(a["opscoord_span"])
     fsup_span = int(a["fieldsup_span"])
     rmgr_span = int(a["regionalmgr_span"])
+
+    # Management turnover cost
+    opscoord_to    = float(a.get("opscoord_turnover",    0.35))
+    fieldsup_to    = float(a.get("fieldsup_turnover",    0.25))
+    regionalmgr_to = float(a.get("regionalmgr_turnover", 0.18))
+    opscoord_rc    = float(a.get("opscoord_replace_cost",    8_000.0))
+    fieldsup_rc    = float(a.get("fieldsup_replace_cost",   12_000.0))
+    regionalmgr_rc = float(a.get("regionalmgr_replace_cost",25_000.0))
 
     gm_start  = int(a.get("gm_start_month", 1))
     gm_ramp   = int(a.get("gm_ramp_months", 0))
@@ -252,7 +270,14 @@ def run_model(assumptions: dict, headcount_plan: list):
     df["fixed_ovhd_wk"] = fixed_mo / df["wks_in_month"]
 
     df["corp_alloc_wk"] = df["revenue_wk"] * ca_pct if ca_mode == "pct_revenue" else 0.0
-    df["overhead_wk"]   = df["fixed_ovhd_wk"] + df["corp_alloc_wk"]
+
+    # Weekly turnover cost: (active headcount × annual turnover rate × replacement cost) / 52 weeks
+    df["turnover_cost_wk"] = (
+        df["n_opscoord"]     * opscoord_to    * opscoord_rc    / 52 +
+        df["n_fieldsup"]     * fieldsup_to    * fieldsup_rc    / 52 +
+        df["n_regionalmgr"]  * regionalmgr_to * regionalmgr_rc / 52
+    )
+    df["overhead_wk"]   = df["fixed_ovhd_wk"] + df["corp_alloc_wk"] + df["turnover_cost_wk"]
 
     # --- EBITDA (accrual, pre-interest) ------------------------------
     df["ebitda_wk"] = (df["revenue_wk"]
@@ -419,6 +444,7 @@ def _build_monthly(df: pd.DataFrame) -> pd.DataFrame:
                  hourly_labor    =("hourly_labor",      "sum"),
                  salaried_cost   =("salaried_wk",      "sum"),
                  overhead        =("overhead_wk",      "sum"),
+                 turnover_cost   =("turnover_cost_wk", "sum"),
                  ebitda          =("ebitda_wk",        "sum"),
                  statement_amt   =("statement_amt",    "sum"),
                  collections     =("collections",      "sum"),
