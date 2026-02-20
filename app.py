@@ -1483,7 +1483,7 @@ with tab_sum:
             f"**{fmt_dollar(mo_full['revenue'].max())}/month** in peak revenue. "
             f"Scaling to 150–200 inspectors is achievable within 24–36 months with "
             f"the right supervisor layering and credit facility. Each additional inspector "
-            f"at current rates adds **{fmt_dollar(float(a.get('st_bill_rate', 39)) * (float(a.get('st_hours', 40)) + float(a.get('ot_hours', 10)) * float(a.get('ot_bill_premium', 1.5))) * 52 / 12):,.0f}/month** in annualized revenue."
+            f"at current rates adds **{fmt_dollar(float(a.get('st_bill_rate', 39)) * (float(a.get('st_hours', 40)) + float(a.get('ot_hours', 10)) * float(a.get('ot_bill_premium', 1.5))) * 52 / 12)}/month** in annualized revenue."
         )
 
     with iq2:

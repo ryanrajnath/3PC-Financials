@@ -530,7 +530,7 @@ def _build_monthly(df: pd.DataFrame, assumptions: dict) -> pd.DataFrame:
     agg["net_margin_after_tax"] = np.where(agg["revenue"] > 0,
                                            agg["net_income_after_tax"] / agg["revenue"], 0.0)
     agg["peak_loc_to_date"]     = agg["loc_end"].cummax()
-    agg["period"]               = agg.apply(lambda r: f"{r['year']}-{r['month']:02d}", axis=1)
+    agg["period"]               = agg["month_idx"].apply(lambda i: f"M{int(i)+1}")
     return agg
 
 
