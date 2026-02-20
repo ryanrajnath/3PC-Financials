@@ -54,7 +54,7 @@ def default_assumptions() -> dict:
         "mgmt_burden": 0.25,
         # Span of control (inspectors per role)
         "opscoord_span": 75,
-        "fieldsup_span": 60,
+        "fieldsup_span": 25,
         "regionalmgr_span": 175,
         # GM ramp
         "gm_start_month": 1,   # 1-based model month when GM activates
