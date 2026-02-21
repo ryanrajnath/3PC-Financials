@@ -379,69 +379,104 @@ def _render_loc_chart(mo, wdf, a):
 
 
 def _render_ebitda_chart(mo_in):
-    """Build and render the EBITDA & Implied Company Valuation chart (shared by L1 and Brief tab)."""
+    """J-curve: cumulative net income over time — shows the investment arc and payback."""
     mo_cf = mo_in.copy()
-    mo_cf["ttm_ebitda"] = mo_cf["ebitda"].rolling(12, min_periods=1).sum()
-    mo_cf["implied_ev"] = mo_cf["ttm_ebitda"].apply(
-        lambda e: e * _ev_multiple(e) if e > 0 else 0
-    )
+    mo_cf["cumulative_ni"] = mo_cf["ebitda_after_interest"].cumsum()
 
-    fig_cf = go.Figure()
+    # Split into two traces so area fill is red below zero, green above
+    neg = mo_cf["cumulative_ni"].clip(upper=0)
+    pos = mo_cf["cumulative_ni"].clip(lower=0)
 
-    fig_cf.add_trace(go.Scatter(
-        x=mo_cf["period"], y=mo_cf["ttm_ebitda"],
-        name="Trailing 12-Mo EBITDA", mode="lines",
-        line=dict(color=PC[0], width=2),
-        fill="tozeroy",
-        fillcolor="rgba(59,130,246,0.08)",
-        yaxis="y1",
+    fig = go.Figure()
+
+    # Red fill — the "investment in" zone
+    fig.add_trace(go.Scatter(
+        x=mo_cf["period"], y=neg,
+        name="Cumulative deficit", mode="lines",
+        line=dict(color="#EF4444", width=0),
+        fill="tozeroy", fillcolor="rgba(239,68,68,0.12)",
+        showlegend=False,
+    ))
+    # Green fill — the "return" zone
+    fig.add_trace(go.Scatter(
+        x=mo_cf["period"], y=pos,
+        name="Cumulative net income", mode="lines",
+        line=dict(color="#059669", width=0),
+        fill="tozeroy", fillcolor="rgba(5,150,105,0.12)",
+        showlegend=False,
+    ))
+    # Single visible line on top
+    fig.add_trace(go.Scatter(
+        x=mo_cf["period"], y=mo_cf["cumulative_ni"],
+        name="Cumulative Net Income", mode="lines",
+        line=dict(color=PC[0], width=2.5),
     ))
 
-    fig_cf.add_trace(go.Scatter(
-        x=mo_cf["period"], y=mo_cf["implied_ev"],
-        name="Implied Company Value (EV)", mode="lines",
-        line=dict(color=PC[2], width=2.5, dash="dot"),
-        yaxis="y2",
-    ))
+    # Zero line
+    fig.add_hline(y=0, line_dash="dot", line_color="#94A3B8", line_width=1)
 
-    fig_cf.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1, yref="y1")
+    # Annotate trough (peak deficit)
+    _trough_idx = mo_cf["cumulative_ni"].idxmin()
+    _trough_val = mo_cf.loc[_trough_idx, "cumulative_ni"]
+    _trough_period = mo_cf.loc[_trough_idx, "period"]
+    if _trough_val < 0:
+        fig.add_annotation(
+            x=_trough_period, y=_trough_val,
+            text=f"Peak deficit<br>{fmt_dollar(_trough_val)}",
+            showarrow=True, arrowhead=2, arrowcolor="#EF4444",
+            font=dict(color="#EF4444", size=10),
+            ax=40, ay=-30,
+        )
 
-    _pos_rows = mo_cf[mo_cf["ttm_ebitda"] > 0]
-    if len(_pos_rows):
-        _cross_period = _pos_rows.iloc[0]["period"]
-        fig_cf.add_shape(
+    # Annotate zero crossover (self-funding)
+    _cross_rows = mo_cf[mo_cf["cumulative_ni"] >= 0]
+    if len(_cross_rows):
+        _cross_period = _cross_rows.iloc[0]["period"]
+        fig.add_shape(
             type="line", x0=_cross_period, x1=_cross_period, y0=0, y1=1,
             xref="x", yref="paper",
-            line=dict(dash="dot", color=PC[1], width=1)
+            line=dict(dash="dot", color="#059669", width=1.5)
         )
-        fig_cf.add_annotation(
-            x=_cross_period, y=0.98, xref="x", yref="paper",
-            text=f"TTM EBITDA positive: {_cross_period}", font=dict(color=PC[1], size=10),
+        fig.add_annotation(
+            x=_cross_period, y=0.96, xref="x", yref="paper",
+            text=f"Paid back: {_cross_period}",
+            font=dict(color="#059669", size=10),
             showarrow=False, textangle=-90,
-            xanchor="right", yanchor="top"
+            xanchor="right", yanchor="top",
         )
 
-    fig_cf.update_layout(
-        template=TPL, height=340, margin=dict(l=10, r=10, t=10, b=60),
-        legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom"),
-        xaxis=dict(rangeslider=dict(visible=True, thickness=0.05)),
-        yaxis=dict(tickformat="$,.0f", title="Trailing 12-Mo EBITDA ($)", side="left"),
-        yaxis2=dict(
-            tickformat="$,.0f", title="Implied EV ($)",
-            overlaying="y", side="right", showgrid=False,
-        ),
-    )
-    st.plotly_chart(fig_cf, use_container_width=True, config=_CHART_CONFIG)
+    # Annotate steady-state endpoint
+    _end_val = mo_cf["cumulative_ni"].iloc[-1]
+    _end_period = mo_cf["period"].iloc[-1]
+    if _end_val > 0:
+        fig.add_annotation(
+            x=_end_period, y=_end_val,
+            text=f"{fmt_dollar(_end_val)}<br>total",
+            showarrow=False,
+            font=dict(color=PC[0], size=10),
+            xanchor="right",
+        )
 
-    _ss_ttm = mo_cf[mo_cf["ttm_ebitda"] > 0]["ttm_ebitda"].iloc[-3:].mean() if mo_cf["ttm_ebitda"].gt(0).any() else 0
-    _ss_ev  = _ss_ttm * _ev_multiple(_ss_ttm) if _ss_ttm > 0 else 0
-    _ss_mult = _ev_multiple(_ss_ttm) if _ss_ttm > 0 else 0
-    if _ss_ev > 0:
+    fig.update_layout(
+        template=TPL, height=340, margin=dict(l=10, r=10, t=10, b=10),
+        showlegend=False,
+        xaxis=dict(rangeslider=dict(visible=True, thickness=0.05)),
+        yaxis=dict(tickformat="$,.0f", title="Cumulative Net Income ($)"),
+    )
+    st.plotly_chart(fig, use_container_width=True, config=_CHART_CONFIG)
+
+    # Caption
+    _ss_monthly = float(mo_cf["ebitda_after_interest"].tail(12).mean())
+    if _end_val > 0 and _ss_monthly > 0:
         st.caption(
-            f"At steady state (~${_ss_ttm:,.0f} TTM EBITDA), implied exit value is "
-            f"**${_ss_ev:,.0f}** at {_ss_mult:.1f}x trailing EBITDA. "
-            f"Multiple expands as EBITDA grows — calibrated from M&A market data for "
-            f"containment/inspection staffing (UHY, First Page Sage, 2024–25)."
+            f"Cumulative return on the selected range: **{fmt_dollar(_end_val)}**. "
+            f"Steady-state run rate: **{fmt_dollar(_ss_monthly)}/month** "
+            f"(**{fmt_dollar(_ss_monthly * 12)}/year**) after interest."
+        )
+    elif _trough_val < 0:
+        st.caption(
+            f"Peak cumulative deficit of **{fmt_dollar(_trough_val)}** at {_trough_period}. "
+            "Extend the date range or increase headcount to show full payback arc."
         )
 
 
