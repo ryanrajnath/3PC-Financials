@@ -201,6 +201,7 @@ if "run_hash"       not in st.session_state: st.session_state.run_hash       = N
 if "run_ts"         not in st.session_state: st.session_state.run_ts         = None
 if "bootstrapped"   not in st.session_state: st.session_state.bootstrapped   = False
 if "preset_version" not in st.session_state: st.session_state.preset_version  = 0
+if "view_mode"      not in st.session_state: st.session_state.view_mode       = "Level 1 — Investor"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -324,6 +325,124 @@ def _apply_range(mo):
     lo = st.session_state.get("global_range_lo", 1)
     hi = st.session_state.get("global_range_hi", len(mo))
     return mo[(mo["month_idx"] >= lo - 1) & (mo["month_idx"] <= hi - 1)]
+
+
+def _render_loc_chart(mo, wdf, a):
+    """Build and render the Credit Line / Cash / AR chart (shared by L1 and Brief tab)."""
+    def _first_month(df, col):
+        rows = df[df[col] > 0]
+        if not len(rows):
+            return None, None
+        idx = rows.index[0]
+        label = rows.iloc[0]["period"]
+        return idx, label
+
+    m_tl, m_tl_lbl = _first_month(mo, "team_leads_avg")
+    m_oc, m_oc_lbl = _first_month(mo, "n_opscoord")
+    m_fs, m_fs_lbl = _first_month(mo, "n_fieldsup")
+    m_rm, m_rm_lbl = _first_month(mo, "n_regionalmgr")
+
+    fig_loc = go.Figure()
+    fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["loc_end"], name="Credit Line Balance",
+        fill="tozeroy", fillcolor="rgba(239,68,68,0.08)", line=dict(color=PC[3], width=2)))
+    fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["ar_end"], name="Accounts Receivable",
+        line=dict(color=PC[0], width=2)))
+    fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["cash_end"], name="Cash on Hand",
+        line=dict(color=PC[1], width=2)))
+    fig_loc.add_hline(y=float(a["max_loc"]), line_dash="dot", line_color=PC[3],
+                      annotation_text="Credit Limit", annotation_font_color=PC[3])
+
+    _milestones = [
+        (m_tl, m_tl_lbl, "1st Team Lead", PC[0]),
+        (m_oc, m_oc_lbl, "1st Ops Coord", PC[4]),
+        (m_fs, m_fs_lbl, "1st Field Sup", PC[2]),
+        (m_rm, m_rm_lbl, "1st Reg. Mgr",  PC[5]),
+    ]
+    for _mi, _mp, _ml, _mc in _milestones:
+        if _mi is not None:
+            fig_loc.add_shape(
+                type="line", x0=_mp, x1=_mp, y0=0, y1=1,
+                xref="x", yref="paper",
+                line=dict(dash="dot", color=_mc, width=1)
+            )
+            fig_loc.add_annotation(
+                x=_mp, y=0.98, xref="x", yref="paper",
+                text=f"{_ml} ({_mp})", font=dict(color=_mc, size=10),
+                showarrow=False, textangle=-90,
+                xanchor="right", yanchor="top"
+            )
+
+    fig_loc.update_layout(template=TPL, height=340, margin=dict(l=10, r=10, t=10, b=10),
+                          legend=dict(orientation="h", y=-0.2), yaxis=dict(tickformat="$,.0f"),
+                          xaxis=dict(rangeslider=dict(visible=True, thickness=0.05)))
+    st.plotly_chart(fig_loc, use_container_width=True, config=_CHART_CONFIG)
+
+
+def _render_ebitda_chart(mo_in):
+    """Build and render the EBITDA & Implied Company Valuation chart (shared by L1 and Brief tab)."""
+    mo_cf = mo_in.copy()
+    mo_cf["ttm_ebitda"] = mo_cf["ebitda"].rolling(12, min_periods=1).sum()
+    mo_cf["implied_ev"] = mo_cf["ttm_ebitda"].apply(
+        lambda e: e * _ev_multiple(e) if e > 0 else 0
+    )
+
+    fig_cf = go.Figure()
+
+    fig_cf.add_trace(go.Scatter(
+        x=mo_cf["period"], y=mo_cf["ttm_ebitda"],
+        name="Trailing 12-Mo EBITDA", mode="lines",
+        line=dict(color=PC[0], width=2),
+        fill="tozeroy",
+        fillcolor="rgba(59,130,246,0.08)",
+        yaxis="y1",
+    ))
+
+    fig_cf.add_trace(go.Scatter(
+        x=mo_cf["period"], y=mo_cf["implied_ev"],
+        name="Implied Company Value (EV)", mode="lines",
+        line=dict(color=PC[2], width=2.5, dash="dot"),
+        yaxis="y2",
+    ))
+
+    fig_cf.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1, yref="y1")
+
+    _pos_rows = mo_cf[mo_cf["ttm_ebitda"] > 0]
+    if len(_pos_rows):
+        _cross_period = _pos_rows.iloc[0]["period"]
+        fig_cf.add_shape(
+            type="line", x0=_cross_period, x1=_cross_period, y0=0, y1=1,
+            xref="x", yref="paper",
+            line=dict(dash="dot", color=PC[1], width=1)
+        )
+        fig_cf.add_annotation(
+            x=_cross_period, y=0.98, xref="x", yref="paper",
+            text=f"TTM EBITDA positive: {_cross_period}", font=dict(color=PC[1], size=10),
+            showarrow=False, textangle=-90,
+            xanchor="right", yanchor="top"
+        )
+
+    fig_cf.update_layout(
+        template=TPL, height=340, margin=dict(l=10, r=10, t=10, b=10),
+        legend=dict(orientation="h", y=-0.2),
+        xaxis=dict(rangeslider=dict(visible=True, thickness=0.05)),
+        yaxis=dict(tickformat="$,.0f", title="Trailing 12-Mo EBITDA ($)", side="left"),
+        yaxis2=dict(
+            tickformat="$,.0f", title="Implied EV ($)",
+            overlaying="y", side="right", showgrid=False,
+        ),
+    )
+    st.plotly_chart(fig_cf, use_container_width=True, config=_CHART_CONFIG)
+
+    _ss_ttm = mo_cf[mo_cf["ttm_ebitda"] > 0]["ttm_ebitda"].iloc[-3:].mean() if mo_cf["ttm_ebitda"].gt(0).any() else 0
+    _ss_ev  = _ss_ttm * _ev_multiple(_ss_ttm) if _ss_ttm > 0 else 0
+    _ss_mult = _ev_multiple(_ss_ttm) if _ss_ttm > 0 else 0
+    if _ss_ev > 0:
+        st.caption(
+            f"At steady state (~${_ss_ttm:,.0f} TTM EBITDA), implied exit value is "
+            f"**${_ss_ev:,.0f}** at {_ss_mult:.1f}x trailing EBITDA. "
+            f"Multiple expands as EBITDA grows — calibrated from M&A market data for "
+            f"containment/inspection staffing (UHY, First Page Sage, 2024–25)."
+        )
 
 
 # ── Scenario presets ──────────────────────────────────────────────────────────
@@ -489,7 +608,18 @@ def _on_preset_change():
         st.session_state.preset_version     = st.session_state.get("preset_version", 0) + 1
         run_and_store()
 
-ctrl1, ctrl2, ctrl3 = st.columns([3, 1, 2])
+# ── View mode toggle + controls ────────────────────────────────────────────
+_vm_col, ctrl1, ctrl2, ctrl3 = st.columns([2, 3, 1, 2])
+with _vm_col:
+    _vm = st.radio(
+        "View",
+        ["Level 1 — Investor", "Level 2 — Operator"],
+        index=0 if st.session_state.view_mode == "Level 1 — Investor" else 1,
+        horizontal=True,
+        label_visibility="collapsed",
+        help="Level 1: investor summary only. Level 2: full model detail.",
+    )
+    st.session_state.view_mode = _vm
 with ctrl1:
     _preset_label = st.session_state.get("active_preset", "Base Case")
     if _is_modified():
@@ -552,23 +682,153 @@ if results_ready():
         _rng_label = f"M{_rlo} – M{_rhi} ({_sel_months // 12}Y {_sel_months % 12}M)"
     st.caption(f"📅 Showing **{_rng_label}** across all tabs")
 
-    # Top-level KPI bar — scoped to selected range
-    mo_top = _apply_range(mo_h)
-    k1, k2, k3, k4, k5 = st.columns(5)
-    peak_mo = mo_top.loc[mo_top["loc_end"].idxmax(), "period"] if mo_top["loc_end"].max() > 0 else "—"
-    _n_mo_top = len(mo_top)
-    _lbl_top  = f"{_n_mo_top}-Mo" if _n_mo_top <= 24 else (f"{_n_mo_top//12}-Yr" if _n_mo_top % 12 == 0 else f"{_n_mo_top//12}Y{_n_mo_top%12}M")
-    kpi(k1, "Peak Credit Line",          fmt_dollar(mo_top["loc_end"].max()),                     peak_mo)
-    kpi(k2, f"{_lbl_top} Revenue",       fmt_dollar(mo_top["revenue"].sum()),                     "billed (accrual)")
-    kpi(k3, f"{_lbl_top} Net Income",    fmt_dollar(mo_top["ebitda_after_interest"].sum()),        "after interest")
-    kpi(k4, "Total Borrowing Cost",      fmt_dollar(mo_top["interest"].sum()),                    "credit line interest")
-    yr1 = mo_top[mo_top["month_idx"].between(_rlo - 1, _rlo + 10)]
-    kpi(k5, "Year 1 Net Income",         fmt_dollar(yr1["ebitda_after_interest"].sum()),           "first 12 months of range")
+    # Determine view mode
+    _L1 = (st.session_state.view_mode == "Level 1 — Investor")
+
+    # Top-level KPI bar — scoped to selected range (hidden in L1 mode)
+    if not _L1:
+        mo_top = _apply_range(mo_h)
+        k1, k2, k3, k4, k5 = st.columns(5)
+        peak_mo = mo_top.loc[mo_top["loc_end"].idxmax(), "period"] if mo_top["loc_end"].max() > 0 else "—"
+        _n_mo_top = len(mo_top)
+        _lbl_top  = f"{_n_mo_top}-Mo" if _n_mo_top <= 24 else (f"{_n_mo_top//12}-Yr" if _n_mo_top % 12 == 0 else f"{_n_mo_top//12}Y{_n_mo_top%12}M")
+        kpi(k1, "Peak Credit Line",          fmt_dollar(mo_top["loc_end"].max()),                     peak_mo)
+        kpi(k2, f"{_lbl_top} Revenue",       fmt_dollar(mo_top["revenue"].sum()),                     "billed (accrual)")
+        kpi(k3, f"{_lbl_top} Net Income",    fmt_dollar(mo_top["ebitda_after_interest"].sum()),        "after interest")
+        kpi(k4, "Total Borrowing Cost",      fmt_dollar(mo_top["interest"].sum()),                    "credit line interest")
+        yr1 = mo_top[mo_top["month_idx"].between(_rlo - 1, _rlo + 10)]
+        kpi(k5, "Year 1 Net Income",         fmt_dollar(yr1["ebitda_after_interest"].sum()),           "first 12 months of range")
     st.divider()
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# TABS
+# VIEW MODE GATE
+# ════════════════════════════════════════════════════════════════════════════
+_L1 = (st.session_state.view_mode == "Level 1 — Investor")
+
+if _L1:
+    # ── Level 1 — Investor View ────────────────────────────────────────────
+    if not results_ready():
+        st.markdown('<div class="info-box">Select a scenario above and click <b>Run</b> to generate results.</div>', unsafe_allow_html=True)
+        st.stop()
+
+    weekly_df, mo_full, qdf_full = st.session_state.results
+    a = st.session_state.assumptions
+    mo = _apply_range(mo_full)
+
+    # ── Verdict + KPI cards ────────────────────────────────────────────────
+    _mo_peak_idx = int(mo["loc_end"].idxmax()) if len(mo) else 0
+    _mo_peak_period = mo.loc[_mo_peak_idx, "period"] if len(mo) else "—"
+    _peak_rng = float(mo["loc_end"].max()) if len(mo) else 0
+    _ss_mo = mo.tail(12)
+    _ss_ebitda = float(_ss_mo["ebitda_after_interest"].mean())
+    _ss_annual = _ss_ebitda * 12
+    _total_interest = float(mo["interest"].sum())
+    _ropc = (_ss_annual / _peak_rng) if _peak_rng > 100 else 0
+    _profitable_rows = mo[mo["ebitda_after_interest"] > 0]
+    _be_month = _profitable_rows.iloc[0]["period"] if len(_profitable_rows) else "Not in range"
+
+    _avg_fccr = float(mo[mo["fccr"] < 99]["fccr"].mean()) if "fccr" in mo.columns and len(mo[mo["fccr"] < 99]) else 0
+    _min_fccr = float(mo[mo["fccr"] < 99]["fccr"].min()) if "fccr" in mo.columns and len(mo[mo["fccr"] < 99]) else 0
+    _max_loc = float(a.get("max_loc", 1_000_000))
+    n_loc = weekly_df["warn_loc_maxed"].sum() if "warn_loc_maxed" in weekly_df.columns else 0
+    _burden = float(a.get("burden", 0.30))
+
+    # Verdict banner
+    if _ss_ebitda > 0 and _peak_rng > 0:
+        st.success(
+            f"**This scenario requires {fmt_dollar(_peak_rng)} in credit** (peaks at {_mo_peak_period}), "
+            f"reaches profitability at **{_be_month}**, and generates "
+            f"**{fmt_dollar(_ss_ebitda)}/month** at steady state — "
+            f"a **{_ropc:.1f}x annualized return** on peak capital."
+        )
+    else:
+        st.error("No profitability in selected range. Adjust bill rate, headcount, or burden % and re-run.")
+
+    # 4 KPI cards
+    _l1k1, _l1k2, _l1k3, _l1k4 = st.columns(4)
+    kpi(_l1k1, "Peak Credit Required",  fmt_dollar(_peak_rng),   f"due by {_mo_peak_period}")
+    kpi(_l1k2, "First Profitable Month", _be_month,              "net income after interest")
+    kpi(_l1k3, "Steady-State / Month",  fmt_dollar(_ss_ebitda),  "avg last 12 months of range")
+    kpi(_l1k4, "Return on Peak Capital", f"{_ropc:.1f}x",        "annualized EBITDA / peak credit")
+    st.divider()
+
+    # ── 2 charts side by side ─────────────────────────────────────────────
+    _c1, _c2 = st.columns(2)
+    with _c1:
+        section("Credit Line, Cash & Accounts Receivable")
+        _render_loc_chart(mo, weekly_df, a)
+    with _c2:
+        section("EBITDA & Implied Company Valuation")
+        _render_ebitda_chart(mo)
+
+    st.divider()
+
+    # ── Risk callouts ─────────────────────────────────────────────────────
+    _has_risks = n_loc or _peak_rng > _max_loc or _burden > 0.35 or (_min_fccr > 0 and _min_fccr < 1.1)
+    if _has_risks:
+        section("Risk Flags")
+        if _peak_rng > _max_loc:
+            st.error(
+                f"**Peak draw of {fmt_dollar(_peak_rng)} exceeds your {fmt_dollar(_max_loc)} credit facility.** "
+                "The business is underfunded at these assumptions — increase the credit line or reduce ramp speed."
+            )
+        elif n_loc:
+            st.warning(
+                f"**Credit line hit its maximum in {n_loc} week(s).** "
+                "Consider a larger facility or slower headcount ramp."
+            )
+        if _burden > 0.35:
+            st.warning(
+                f"**Burden rate {_burden:.0%} is above 35%.** "
+                "Verify workers comp and benefits assumptions — this compresses gross margin significantly."
+            )
+        if _min_fccr > 0 and _min_fccr < 1.1:
+            st.warning(
+                f"**Minimum FCCR {_min_fccr:.2f}x is below lender threshold of 1.1x.** "
+                "Tighten terms or increase headcount/rates before approaching lenders."
+            )
+
+    # ── The Four Questions ────────────────────────────────────────────────
+    st.divider()
+    section("The Four Questions")
+    qa1, qa2 = st.columns(2)
+    with qa1:
+        if _ss_ebitda > 0:
+            st.success(
+                f"**Does it work?** Yes — at steady state this division generates "
+                f"{fmt_dollar(_ss_ebitda)}/month ({fmt_dollar(_ss_annual)}/year) net of all costs and interest."
+            )
+        else:
+            st.error(
+                "**Does it work?** Not at current assumptions. "
+                "Adjust bill rate, headcount, or payment terms."
+            )
+        _max_insp = max(st.session_state.headcount_plan)
+        _max_ttm  = mo_full["ebitda"].rolling(12, min_periods=1).sum().max() if len(mo_full) else 0
+        _max_ev   = _max_ttm * _ev_multiple(_max_ttm) if _max_ttm > 0 else 0
+        if _max_ev > 0:
+            st.info(
+                f"**How big can this become?** At {_max_insp} inspectors, "
+                f"TTM EBITDA reaches {fmt_dollar(_max_ttm)} with an implied exit value of "
+                f"{fmt_dollar(_max_ev)} ({_ev_multiple(_max_ttm):.1f}x EBITDA)."
+            )
+    with qa2:
+        _nd_val = int(a.get("net_days", 60))
+        st.info(
+            f"**What capital is required?** A {fmt_dollar(_max_loc)} credit facility sized for "
+            f"Net {_nd_val} payment terms. Peak draw: {fmt_dollar(_peak_rng)} at {_mo_peak_period}."
+        )
+        st.info(
+            "**Can the team execute?** The GM runs day-to-day. Supervisor and manager layers trigger "
+            "automatically as headcount scales. William Renfrow holds capital and credit — "
+            "no operating role required."
+        )
+    # L1 view is complete — stop here so tab code below does not execute
+    st.stop()
+
+# ════════════════════════════════════════════════════════════════════════════
+# TABS  (Level 2 — Operator View only)
 # ════════════════════════════════════════════════════════════════════════════
 tab_brief, tab_inputs, tab_detail = st.tabs([
     "◎  Investor Brief", "⚙  Inputs", "≋  Detail"
@@ -1110,134 +1370,13 @@ with tab_brief:
 
     with _brief_c1:
         section("Credit Line, Cash & AR")
-
-        def _first_month(df, col):
-            rows = df[df[col] > 0]
-            if not len(rows):
-                return None, None
-            idx = rows.index[0]
-            label = rows.iloc[0]["period"]
-            return idx, label
-
-        m_tl,  m_tl_lbl  = _first_month(mo, "team_leads_avg")
-        m_oc,  m_oc_lbl  = _first_month(mo, "n_opscoord")
-        m_fs,  m_fs_lbl  = _first_month(mo, "n_fieldsup")
-        m_rm,  m_rm_lbl  = _first_month(mo, "n_regionalmgr")
-
-        fig_loc = go.Figure()
-        fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["loc_end"],  name="Credit Line Balance",
-            fill="tozeroy", fillcolor="rgba(239,68,68,0.08)", line=dict(color=PC[3], width=2)))
-        fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["ar_end"],   name="Accounts Receivable",
-            line=dict(color=PC[0], width=2)))
-        fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["cash_end"], name="Cash on Hand",
-            line=dict(color=PC[1], width=2)))
-        fig_loc.add_hline(y=float(a["max_loc"]), line_dash="dot", line_color=PC[3],
-                          annotation_text="Credit Limit", annotation_font_color=PC[3])
-
-        _milestones = [
-            (m_tl, m_tl_lbl, "1st Team Lead", PC[0]),
-            (m_oc, m_oc_lbl, "1st Ops Coord", PC[4]),
-            (m_fs, m_fs_lbl, "1st Field Sup", PC[2]),
-            (m_rm, m_rm_lbl, "1st Reg. Mgr",  PC[5]),
-        ]
-        for _mi, _mp, _ml, _mc in _milestones:
-            if _mi is not None:
-                fig_loc.add_shape(
-                    type="line", x0=_mp, x1=_mp, y0=0, y1=1,
-                    xref="x", yref="paper",
-                    line=dict(dash="dot", color=_mc, width=1)
-                )
-                fig_loc.add_annotation(
-                    x=_mp, y=0.98, xref="x", yref="paper",
-                    text=f"{_ml} ({_mp})", font=dict(color=_mc, size=10),
-                    showarrow=False, textangle=-90,
-                    xanchor="right", yanchor="top"
-                )
-
-        fig_loc.update_layout(template=TPL, height=340, margin=dict(l=10,r=10,t=10,b=10),
-                              legend=dict(orientation="h", y=-0.2), yaxis=dict(tickformat="$,.0f"),
-                              xaxis=dict(rangeslider=dict(visible=True, thickness=0.05)))
-        st.plotly_chart(fig_loc, use_container_width=True, config=_CHART_CONFIG)
+        _render_loc_chart(mo, weekly_df, a)
 
     # ── 3. EBITDA trajectory + implied company valuation ──────────────────
     with _brief_c2:
         section("EBITDA & Implied Company Valuation")
-        mo_cf = mo.copy()
-        # Use trailing-12-month EBITDA for valuation (rolling sum; use point EBITDA for first 12 months)
-        mo_cf["cumulative_ebitda"] = mo_cf["ebitda"].cumsum()
-        mo_cf["ttm_ebitda"] = mo_cf["ebitda"].rolling(12, min_periods=1).sum()
-        mo_cf["implied_ev"]  = mo_cf["ttm_ebitda"].apply(
-            lambda e: e * _ev_multiple(e) if e > 0 else 0
-        )
-        mo_cf["ev_multiple"] = mo_cf["ttm_ebitda"].apply(
-            lambda e: _ev_multiple(e) if e > 0 else 0
-        )
+        _render_ebitda_chart(mo)
 
-        fig_cf = go.Figure()
-
-        # EBITDA area (primary y-axis)
-        fig_cf.add_trace(go.Scatter(
-            x=mo_cf["period"], y=mo_cf["ebitda"],
-            name="Monthly EBITDA", mode="lines",
-            line=dict(color=PC[0], width=2),
-            fill="tozeroy",
-            fillcolor="rgba(59,130,246,0.08)",
-            yaxis="y1",
-        ))
-
-        # Implied Enterprise Value (secondary y-axis)
-        fig_cf.add_trace(go.Scatter(
-            x=mo_cf["period"], y=mo_cf["implied_ev"],
-            name="Implied Company Value (EV)", mode="lines",
-            line=dict(color=PC[2], width=2.5, dash="dot"),
-            yaxis="y2",
-        ))
-
-        # Breakeven line
-        fig_cf.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1,
-                         yref="y1")
-
-        # Mark first month of positive EBITDA
-        _pos_rows = mo_cf[mo_cf["ebitda"] > 0]
-        if len(_pos_rows):
-            _cross_period = _pos_rows.iloc[0]["period"]
-            fig_cf.add_shape(
-                type="line", x0=_cross_period, x1=_cross_period, y0=0, y1=1,
-                xref="x", yref="paper",
-                line=dict(dash="dot", color=PC[1], width=1)
-            )
-            fig_cf.add_annotation(
-                x=_cross_period, y=0.98, xref="x", yref="paper",
-                text=f"EBITDA positive: {_cross_period}", font=dict(color=PC[1], size=10),
-                showarrow=False, textangle=-90,
-                xanchor="right", yanchor="top"
-            )
-
-        fig_cf.update_layout(
-            template=TPL, height=340, margin=dict(l=10, r=10, t=10, b=10),
-            legend=dict(orientation="h", y=-0.2),
-            yaxis=dict(tickformat="$,.0f", title="Monthly EBITDA ($)", side="left"),
-            yaxis2=dict(
-                tickformat="$,.0f", title="Implied EV ($)",
-                overlaying="y", side="right", showgrid=False,
-            ),
-        )
-        st.plotly_chart(fig_cf, use_container_width=True)
-
-        # Narrative callout below chart
-        _last_ebitda = mo_cf["ebitda"].iloc[-1]
-        _last_ev     = mo_cf["implied_ev"].iloc[-1]
-        _last_mult   = mo_cf["ev_multiple"].iloc[-1]
-        _ss_ebitda   = mo_cf[mo_cf["ebitda"] > 0]["ebitda"].iloc[-3:].mean() if mo_cf["ebitda"].gt(0).any() else 0
-        _ss_ev       = _ss_ebitda * _ev_multiple(_ss_ebitda) if _ss_ebitda > 0 else 0
-        _ss_mult     = _ev_multiple(_ss_ebitda) if _ss_ebitda > 0 else 0
-        if _ss_ev > 0:
-            st.caption(
-                f"At steady state (~{_ss_ebitda:,.0f}/mo EBITDA), implied exit value is "
-                f"**${_ss_ev * 12:,.0f}** ({_ss_mult:.1f}x trailing EBITDA). "
-                f"Multiple expands as EBITDA grows — reflects market M&A data for "
-                f"containment/inspection staffing (UHY, First Page Sage, 2024–25)."
-            )
 
     # ── 4. Risk callouts (only show if triggered) ─────────────────────────
     if n_loc or n_mgmt or _burden > 0.35 or _nd > 90 or (0 < _margin_yr1 < 0.10) or (_min_fccr > 0 and _min_fccr < 1.1) or _peak_loc_util > 0.85:
