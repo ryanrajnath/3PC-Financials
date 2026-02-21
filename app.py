@@ -566,6 +566,153 @@ def _render_ebitda_chart(mo_in):
         )
 
 
+# ── Simplified chart helpers (Simple View only) ─────────────────────────────
+
+def _render_loc_chart_simple(mo, a):
+    """Simple View: clean 2-line chart — credit balance + cash. No AR, no milestones."""
+    fig = go.Figure()
+
+    # Credit line balance — amber fill to signal borrowing
+    fig.add_trace(go.Scatter(
+        x=mo["period"], y=mo["loc_end"],
+        name="What You Owe",
+        mode="lines",
+        line=dict(color="#F97316", width=2.5, shape="spline", smoothing=0.4),
+        fill="tozeroy",
+        fillcolor="rgba(249,115,22,0.07)",
+        hovertemplate="<b>What You Owe</b><br>%{x}<br>%{y:$,.0f}<extra></extra>",
+    ))
+
+    # Cash on hand — clean blue
+    fig.add_trace(go.Scatter(
+        x=mo["period"], y=mo["cash_end"],
+        name="Cash on Hand",
+        mode="lines",
+        line=dict(color="#0EA5E9", width=2.5, shape="spline", smoothing=0.4),
+        hovertemplate="<b>Cash on Hand</b><br>%{x}<br>%{y:$,.0f}<extra></extra>",
+    ))
+
+    # Credit limit — red dotted hard stop
+    fig.add_hline(
+        y=float(a["max_loc"]),
+        line_dash="dot", line_color="#DC2626", line_width=1.5,
+        annotation_text="Credit Limit",
+        annotation_font_color="#DC2626",
+        annotation_font_size=10,
+        annotation_position="top right",
+    )
+
+    fig.update_layout(
+        template=TPL, height=360,
+        margin=dict(l=10, r=10, t=6, b=20),
+        legend=dict(
+            orientation="h", y=1.06, x=0, yanchor="bottom",
+            font=dict(size=11, color="#64748B"),
+            bgcolor="rgba(0,0,0,0)", borderwidth=0,
+        ),
+        plot_bgcolor="#FAFBFC", paper_bgcolor="rgba(0,0,0,0)",
+        yaxis=dict(
+            tickformat="$,.0f", gridcolor="#F1F5F9",
+            zeroline=True, zerolinecolor="#CBD5E1", zerolinewidth=1,
+            tickfont=dict(size=10, color="#94A3B8"),
+            showline=False, ticks="",
+        ),
+        xaxis=dict(
+            showgrid=False, showline=False, ticks="",
+            tickfont=dict(size=10, color="#94A3B8"),
+            showspikes=True, spikemode="across", spikesnap="cursor",
+            spikethickness=1, spikecolor="#CBD5E1", spikedash="solid",
+        ),
+        hoverlabel=dict(
+            bgcolor="#0F172A", font_color="#F8FAFC", font_size=12,
+            bordercolor="rgba(0,0,0,0)", namelength=-1,
+        ),
+        hovermode="x unified",
+    )
+    st.plotly_chart(fig, use_container_width=True, config=_CHART_CONFIG)
+
+
+def _render_ebitda_chart_simple(mo_in):
+    """Simple View: single cumulative profit line + zero crossover marker. No fills, no clutter."""
+    mo_cf = mo_in.copy()
+    mo_cf["cumulative_ni"] = mo_cf["ebitda_after_interest"].cumsum()
+
+    fig = go.Figure()
+
+    # Single clean line — near-black for maximum readability
+    fig.add_trace(go.Scatter(
+        x=mo_cf["period"], y=mo_cf["cumulative_ni"],
+        name="Total Profit", mode="lines",
+        line=dict(color="#0F172A", width=2.5, shape="spline", smoothing=0.3),
+        hovertemplate="<b>Total Profit</b><br>%{x}<br>%{y:$,.0f}<extra></extra>",
+    ))
+
+    # Zero baseline
+    fig.add_hline(y=0, line_dash="dot", line_color="#94A3B8", line_width=1)
+
+    # "Paid back" crossover marker — celebratory green dot
+    _cross_rows = mo_cf[mo_cf["cumulative_ni"] >= 0]
+    if len(_cross_rows) and mo_cf["cumulative_ni"].min() < 0:
+        _cross_period = _cross_rows.iloc[0]["period"]
+        _cross_val = _cross_rows.iloc[0]["cumulative_ni"]
+
+        # Green marker dot with white ring
+        fig.add_trace(go.Scatter(
+            x=[_cross_period], y=[_cross_val],
+            mode="markers",
+            marker=dict(symbol="circle", size=12, color="#059669",
+                        line=dict(color="#FFFFFF", width=2.5)),
+            showlegend=False,
+            hovertemplate=f"<b>Paid back!</b><br>{_cross_period}<extra></extra>",
+        ))
+
+        # Faint green zone from crossover to end
+        _end_period = mo_cf["period"].iloc[-1]
+        fig.add_shape(
+            type="rect",
+            x0=_cross_period, x1=_end_period, y0=0, y1=1,
+            xref="x", yref="paper",
+            fillcolor="rgba(5,150,105,0.04)",
+            line_width=0, layer="below",
+        )
+
+        # Label
+        fig.add_annotation(
+            x=_cross_period, y=0.92, xref="x", yref="paper",
+            text=f"<b>Paid back</b><br>{_cross_period}",
+            font=dict(color="#059669", size=10),
+            bgcolor="rgba(5,150,105,0.10)",
+            bordercolor="rgba(5,150,105,0.3)",
+            borderwidth=1, borderpad=5,
+            showarrow=True, arrowhead=2, arrowwidth=1.5,
+            arrowcolor="#059669", ax=-45, ay=0,
+        )
+
+    fig.update_layout(
+        template=TPL, height=360,
+        margin=dict(l=10, r=10, t=6, b=20),
+        showlegend=False,
+        plot_bgcolor="#FAFBFC", paper_bgcolor="rgba(0,0,0,0)",
+        yaxis=dict(
+            tickformat="$,.0f", gridcolor="#F1F5F9",
+            zeroline=False, tickfont=dict(size=10, color="#94A3B8"),
+            showline=False, ticks="",
+        ),
+        xaxis=dict(
+            showgrid=False, showline=False, ticks="",
+            tickfont=dict(size=10, color="#94A3B8"),
+            showspikes=True, spikemode="across", spikesnap="cursor",
+            spikethickness=1, spikecolor="#CBD5E1", spikedash="solid",
+        ),
+        hoverlabel=dict(
+            bgcolor="#0F172A", font_color="#F8FAFC", font_size=12,
+            bordercolor="rgba(0,0,0,0)", namelength=-1,
+        ),
+        hovermode="x",
+    )
+    st.plotly_chart(fig, use_container_width=True, config=_CHART_CONFIG)
+
+
 # ── Scenario presets ──────────────────────────────────────────────────────────
 def _build_hc(rules):
     hc = [0] * 120
@@ -837,120 +984,107 @@ if _L1:
     a = st.session_state.assumptions
     mo = _apply_range(mo_full)
 
-    # ── Verdict + KPI cards ────────────────────────────────────────────────
+    # ── Compute key numbers ───────────────────────────────────────────────
     _mo_peak_idx = int(mo["loc_end"].idxmax()) if len(mo) else 0
     _mo_peak_period = mo.loc[_mo_peak_idx, "period"] if len(mo) else "—"
     _peak_rng = float(mo["loc_end"].max()) if len(mo) else 0
     _ss_mo = mo.tail(12)
     _ss_ebitda = float(_ss_mo["ebitda_after_interest"].mean())
     _ss_annual = _ss_ebitda * 12
-    _total_interest = float(mo["interest"].sum())
-    _ropc = (_ss_annual / _peak_rng) if _peak_rng > 100 else 0
     _profitable_rows = mo[mo["ebitda_after_interest"] > 0]
     _be_month = _profitable_rows.iloc[0]["period"] if len(_profitable_rows) else "Not in range"
 
-    _avg_fccr = float(mo[mo["fccr"] < 99]["fccr"].mean()) if "fccr" in mo.columns and len(mo[mo["fccr"] < 99]) else 0
-    _min_fccr = float(mo[mo["fccr"] < 99]["fccr"].min()) if "fccr" in mo.columns and len(mo[mo["fccr"] < 99]) else 0
     _max_loc = float(a.get("max_loc", 1_000_000))
     n_loc = weekly_df["warn_loc_maxed"].sum() if "warn_loc_maxed" in weekly_df.columns else 0
     _burden = float(a.get("burden", 0.30))
 
-    # Verdict banner
+    # ── Verdict banner — plain English ────────────────────────────────────
     if _ss_ebitda > 0 and _peak_rng > 0:
         st.markdown(
-            f'<div class="verdict-pass"><strong>You need {fmt_dollar(_peak_rng)} in credit</strong> (peaks at {_mo_peak_period}). '
-            f'The division turns profitable at <strong>{_be_month}</strong> and makes '
-            f'<strong>{fmt_dollar(_ss_ebitda)}/month</strong> when running — '
-            f'a <strong>{_ropc:.1f}x return</strong> on money deployed.</div>',
+            f'<div class="verdict-pass"><strong>This works.</strong> '
+            f"You'll need to borrow up to <strong>{fmt_dollar(_peak_rng)}</strong> "
+            f"({_mo_peak_period} is the peak). You start making money in "
+            f"<strong>{_be_month}</strong>, then earn about "
+            f"<strong>{fmt_dollar(_ss_ebitda)}/month</strong> once everything is running.</div>",
             unsafe_allow_html=True,
         )
     else:
         st.markdown(
-            '<div class="verdict-fail">Not profitable with these numbers. Try raising the bill rate, adding inspectors, or extending the time range.</div>',
+            '<div class="verdict-fail"><strong>This doesn\'t work yet</strong> with these numbers. '
+            'Try charging more per hour or hiring more people.</div>',
             unsafe_allow_html=True,
         )
 
-    # 4 KPI cards
-    _l1k1, _l1k2, _l1k3, _l1k4 = st.columns(4)
-    kpi(_l1k1, "Max Credit Needed",      fmt_dollar(_peak_rng),   f"due by {_mo_peak_period}")
-    kpi(_l1k2, "Turns Profitable",       _be_month,              "after borrowing costs")
-    kpi(_l1k3, "Monthly Profit at Full Speed", fmt_dollar(_ss_ebitda), "avg last 12 months")
-    kpi(_l1k4, "Return on Your Money",   f"{_ropc:.1f}x",        "yearly profit ÷ max credit used")
+    # ── 3 KPI cards (plain labels) ────────────────────────────────────────
+    _l1k1, _l1k2, _l1k3 = st.columns(3)
+    kpi(_l1k1, "Most You'll Borrow",  fmt_dollar(_peak_rng),   f"peaks in {_mo_peak_period}")
+    kpi(_l1k2, "Start Making Money",  _be_month,               "after all costs")
+    kpi(_l1k3, "Monthly Profit",      fmt_dollar(_ss_ebitda),   "when fully staffed")
     st.divider()
 
-    # ── 2 charts side by side ─────────────────────────────────────────────
+    # ── 2 charts side by side (simplified) ────────────────────────────────
     _c1, _c2 = st.columns(2)
     with _c1:
-        section("Credit Line, Cash & Unpaid Invoices")
-        _render_loc_chart(mo, weekly_df, a)
+        st.markdown(
+            '<p style="font-size:13px; font-weight:600; color:#334155; '
+            'letter-spacing:0.2px; margin-bottom:4px;">Borrowing & Cash</p>',
+            unsafe_allow_html=True,
+        )
+        _render_loc_chart_simple(mo, a)
     with _c2:
-        section("Profit Over Time")
-        _render_ebitda_chart(mo)
+        st.markdown(
+            '<p style="font-size:13px; font-weight:600; color:#334155; '
+            'letter-spacing:0.2px; margin-bottom:4px;">Total Profit Over Time</p>',
+            unsafe_allow_html=True,
+        )
+        _render_ebitda_chart_simple(mo)
 
     st.divider()
 
-    # ── Risk callouts ─────────────────────────────────────────────────────
-    _has_risks = n_loc or _peak_rng > _max_loc or _burden > 0.35 or (_min_fccr > 0 and _min_fccr < 1.1)
+    # ── Risk callouts — shorter, plainer (no FCCR) ────────────────────────
+    _has_risks = n_loc or _peak_rng > _max_loc or _burden > 0.35
     if _has_risks:
         section("Things to Watch")
         if _peak_rng > _max_loc:
             st.error(
-                f"**Your credit need ({fmt_dollar(_peak_rng)}) is bigger than your credit line ({fmt_dollar(_max_loc)}).** "
-                "You're underfunded — increase the credit line or slow down hiring."
+                f"**You need more than your bank will lend.** Your peak borrowing "
+                f"({fmt_dollar(_peak_rng)}) exceeds your {fmt_dollar(_max_loc)} credit line. "
+                "Get a bigger credit line or hire slower."
             )
         elif n_loc:
             st.warning(
-                f"**The credit line maxed out in {n_loc} week(s).** Consider a bigger line or slower hiring ramp."
+                f"**You hit your credit limit in {n_loc} week(s).** "
+                "Get a bigger credit line or hire slower."
             )
         if _burden > 0.35:
             st.warning(
-                f"**Payroll overhead at {_burden:.0%} is high.** "
-                "Above 35% squeezes profit fast — double-check your workers comp and benefits numbers."
-            )
-        if _min_fccr > 0 and _min_fccr < 1.1:
-            st.warning(
-                f"**Loan coverage ratio {_min_fccr:.2f}x is below what banks want (1.1x).** "
-                "Tighten payment terms or grow headcount before approaching lenders."
+                f"**Your employee costs (taxes, insurance, etc.) are high at {_burden:.0%}.** "
+                "That eats into profit."
             )
 
-    # ── The Four Questions ────────────────────────────────────────────────
+    # ── The Bottom Line — 2 boxes, plain English ──────────────────────────
     st.divider()
     section("The Bottom Line")
     qa1, qa2 = st.columns(2)
     with qa1:
         if _ss_ebitda > 0:
             st.markdown(
-                f'<div class="verdict-pass"><strong>Does it work?</strong> Yes — when running at full speed this division generates '
-                f'{fmt_dollar(_ss_ebitda)}/month ({fmt_dollar(_ss_annual)}/year) after all costs and borrowing.</div>',
+                f'<div class="verdict-pass"><strong>Does it work?</strong> '
+                f"Yes — you'll make about {fmt_dollar(_ss_ebitda)}/month "
+                f"({fmt_dollar(_ss_annual)}/year) after all costs once it's running.</div>",
                 unsafe_allow_html=True,
             )
         else:
             st.markdown(
-                '<div class="verdict-fail"><strong>Does it work?</strong> Not at current assumptions. '
-                'Adjust bill rate, headcount, or payment terms.</div>',
-                unsafe_allow_html=True,
-            )
-        _max_insp = max(st.session_state.headcount_plan)
-        _max_ttm  = mo_full["ebitda"].rolling(12, min_periods=1).sum().max() if len(mo_full) else 0
-        _max_ev   = _max_ttm * _ev_multiple(_max_ttm) if _max_ttm > 0 else 0
-        if _max_ev > 0:
-            st.markdown(
-                f'<div class="info-box"><strong>How big can this become?</strong> At {_max_insp} inspectors, '
-                f'annual profit reaches {fmt_dollar(_max_ttm)} with an implied exit value of '
-                f'{fmt_dollar(_max_ev)} ({_ev_multiple(_max_ttm):.1f}x annual profit).</div>',
+                '<div class="verdict-fail"><strong>Does it work?</strong> '
+                "Not yet with these numbers. Try charging more per hour or hiring more people.</div>",
                 unsafe_allow_html=True,
             )
     with qa2:
-        _nd_val = int(a.get("net_days", 60))
         st.markdown(
-            f'<div class="info-box"><strong>What money do you need?</strong> A {fmt_dollar(_max_loc)} credit line sized for '
-            f'{_nd_val}-day payment terms. Peak draw: {fmt_dollar(_peak_rng)} at {_mo_peak_period}.</div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            '<div class="info-box"><strong>Does it run without you?</strong> The GM runs day-to-day. Supervisor and manager layers trigger '
-            'automatically as headcount scales. William Renfrow holds capital and credit — '
-            'no operating role required.</div>',
+            f'<div class="info-box"><strong>What money do you need?</strong> '
+            f"A {fmt_dollar(_max_loc)} credit line. The most you'll owe at any one time is "
+            f"{fmt_dollar(_peak_rng)} (around {_mo_peak_period}).</div>",
             unsafe_allow_html=True,
         )
     # L1 view is complete — stop here so tab code below does not execute
