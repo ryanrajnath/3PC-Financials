@@ -63,7 +63,7 @@ def default_assumptions() -> dict:
         "billing_frequency": "monthly",   # "monthly" | "weekly"
         "net_days": 60,
         # LOC
-        "apr": 0.085,
+        "apr": 0.05,
         "max_loc": 1_000_000.0,
         "auto_paydown": True,
         "cash_buffer": 25_000.0,

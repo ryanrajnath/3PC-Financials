@@ -29,39 +29,15 @@ st.set_page_config(
 # ── CSS ──────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* ═══════════════════════════════════════════════════════════════════════
-   NUCLEAR OPACITY KILL — stop ALL hover/run/focus dims everywhere
-   ═══════════════════════════════════════════════════════════════════════ */
-*, *::before, *::after { transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease !important; }
-.stApp, .stApp *,
-.stApp [data-testid],
-.stApp > div,
-.block-container, .block-container *,
-[data-testid="stMain"], [data-testid="stMain"] *,
-[data-testid="stVerticalBlock"], [data-testid="stHorizontalBlock"],
-[data-testid="stAppViewBlockContainer"], [data-testid="stAppViewBlockContainer"] * {
-    opacity: 1 !important;
-}
-/* Kill backdrop dim on hover/focus — do NOT target layer/popover (breaks dropdowns) */
-div[class*="backdrop"], div[class*="Backdrop"] {
-    opacity: 0 !important;
-    pointer-events: none !important;
-}
-/* Kill any Streamlit tooltip dim */
-.stTooltipIcon:hover ~ *, .stTooltipIcon:focus ~ * { opacity: 1 !important; }
-/* Kill the sidebar hover that dims main */
-[data-testid="stSidebar"]:hover ~ [data-testid="stMain"],
-[data-testid="stSidebar"]:hover ~ [data-testid="stMain"] * { opacity: 1 !important; }
-
-/* ── Chrome ─────────────────────────────────────────────────────────── */
+/* ── Base & Layout ─────────────────────────────────────────────────── */
 #MainMenu, footer { visibility: hidden; }
 header { visibility: hidden; height: 0; }
-.block-container { padding-top: 0.5rem; padding-bottom: 2rem; }
+.block-container { padding-top: 0.75rem; padding-bottom: 2rem; max-width: 1400px; }
 
 /* ── Tab Navigation ─────────────────────────────────────────────────── */
 .stTabs [data-baseweb="tab-list"] {
     background: transparent !important;
-    border-bottom: 1px solid #2A3F5F !important;
+    border-bottom: 2px solid #E2E8F0 !important;
     gap: 0 !important;
     padding: 0 !important;
 }
@@ -72,96 +48,149 @@ header { visibility: hidden; height: 0; }
     padding: 10px 22px !important;
     font-size: 13px !important;
     font-weight: 500 !important;
-    letter-spacing: 0.3px !important;
-    opacity: 1 !important;
+    border-bottom: 2px solid transparent !important;
+    margin-bottom: -2px !important;
 }
 .stTabs [data-baseweb="tab"]:hover {
-    color: #E2E8F0 !important;
-    background: rgba(255,255,255,0.04) !important;
-    opacity: 1 !important;
+    color: #1D4ED8 !important;
+    background: #F1F5F9 !important;
 }
 .stTabs [aria-selected="true"][data-baseweb="tab"] {
-    color: #FFFFFF !important;
+    color: #1D4ED8 !important;
     font-weight: 700 !important;
+    border-bottom: 2px solid #1D4ED8 !important;
     background: transparent !important;
-    opacity: 1 !important;
 }
-.stTabs [data-baseweb="tab-highlight"] {
-    background-color: #38BDF8 !important;
-    height: 2px !important;
-    border-radius: 2px 2px 0 0 !important;
-}
-.stTabs [data-baseweb="tab-border"] { display: none !important; }
+.stTabs [data-baseweb="tab-panel"] { padding-top: 1rem !important; }
 
-/* ── KPI cards ──────────────────────────────────────────────────────── */
+/* ── Section Headers ─────────────────────────────────────────────────── */
+.sec-hdr {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #64748B;
+    padding: 0.5rem 0 0.25rem 0;
+    border-bottom: 1px solid #E2E8F0;
+    margin-bottom: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+/* ── KPI Cards ───────────────────────────────────────────────────────── */
 .kpi-card {
-    background: #111827;
-    border: 1px solid #1F2D45;
-    border-top: 2px solid #38BDF8;
-    border-radius: 10px;
-    padding: 16px 18px;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.kpi-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+.kpi-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: #0F172A;
+    line-height: 1.2;
+}
+.kpi-sub {
+    font-size: 11px;
+    color: #94A3B8;
+    margin-top: 2px;
+}
+
+/* ── App Header ──────────────────────────────────────────────────────── */
+.app-header {
+    padding: 12px 0 16px 0;
+    border-bottom: 1px solid #E2E8F0;
+    margin-bottom: 12px;
+}
+.app-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #0F172A;
+    letter-spacing: -0.3px;
+}
+.app-subtitle {
+    font-size: 12px;
+    color: #64748B;
+    margin-top: 2px;
+}
+
+/* ── Status Indicators ───────────────────────────────────────────────── */
+.status-stale {
+    font-size: 12px;
+    color: #D97706;
+    background: #FFFBEB;
+    border: 1px solid #FDE68A;
+    border-radius: 6px;
+    padding: 6px 12px;
     text-align: center;
 }
-.kpi-label { color: #94A3B8; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
-.kpi-value { color: #FFFFFF; font-size: 22px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.kpi-sub   { color: #38BDF8; font-size: 11px; margin-top: 4px; }
-
-/* ── Alert / status boxes ───────────────────────────────────────────── */
-.stale-box  { background: #1C1500; border: 1px solid #78350F; border-left: 3px solid #F59E0B; padding: 10px 14px; border-radius: 6px; font-size: 12px; color: #FDE68A; }
-.warn-box   { background: #1A0000; border: 1px solid #7F1D1D; border-left: 3px solid #F87171; padding: 10px 14px; border-radius: 6px; font-size: 12px; color: #FECACA; }
-.info-box   { background: #001525; border: 1px solid #0C4A6E; border-left: 3px solid #38BDF8; padding: 10px 14px; border-radius: 6px; font-size: 12px; color: #BAE6FD; }
-.status-ok  { background: #001A0F; border: 1px solid #14532D; padding: 8px 14px; border-radius: 6px; font-size: 11px; color: #86EFAC; }
-.status-stale { background: #1C1500; border: 1px solid #78350F; padding: 8px 14px; border-radius: 6px; font-size: 11px; color: #FDE68A; }
-
-/* ── Section headers ─────────────────────────────────────────────────── */
-.sec-hdr {
-    display: flex; align-items: center; gap: 10px;
-    color: #94A3B8; font-size: 9px; text-transform: uppercase;
-    letter-spacing: 2.5px; margin: 28px 0 14px 0;
-    font-weight: 600;
-}
-.sec-hdr::after {
-    content: ''; flex: 1; height: 1px;
-    background: linear-gradient(90deg, #2A3F5F 0%, transparent 100%);
+.status-ok {
+    font-size: 12px;
+    color: #059669;
+    background: #ECFDF5;
+    border: 1px solid #A7F3D0;
+    border-radius: 6px;
+    padding: 6px 12px;
+    text-align: center;
 }
 
-/* ── App header ─────────────────────────────────────────────────────── */
-.app-hdr {
-    background: #0D1117;
-    border: 1px solid #21364F;
-    border-left: 4px solid #38BDF8;
-    border-radius: 10px;
-    padding: 14px 22px;
-    margin-bottom: 14px;
+/* ── Info/callout boxes ──────────────────────────────────────────────── */
+.info-box {
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    border-radius: 8px;
+    padding: 16px 20px;
+    color: #1E40AF;
+    font-size: 14px;
+    margin: 12px 0;
 }
-.app-hdr-title { font-size: 20px; font-weight: 700; color: #FFFFFF; letter-spacing: -0.3px; }
-.app-hdr-sub   { font-size: 10px; color: #38BDF8; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
+
+/* ── Buttons ─────────────────────────────────────────────────────────── */
+.stButton > button[kind="primary"] {
+    background: #1D4ED8 !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+}
+.stButton > button[kind="primary"]:hover {
+    background: #1E40AF !important;
+}
 
 /* ── Sidebar ─────────────────────────────────────────────────────────── */
 [data-testid="stSidebar"] {
-    background: #0D1117 !important;
-    border-right: 1px solid #21364F !important;
+    background: #F8FAFC !important;
+    border-right: 1px solid #E2E8F0 !important;
 }
-[data-testid="stSidebar"] label { color: #E2E8F0 !important; }
-[data-testid="stSidebar"] .stMarkdown p { color: #CBD5E1 !important; }
-[data-testid="stSidebar"] .stMarkdown h1,
-[data-testid="stSidebar"] .stMarkdown h2,
-[data-testid="stSidebar"] .stMarkdown h3 { color: #FFFFFF !important; }
-/* Sidebar section separators */
-[data-testid="stSidebar"] hr { border-color: #21364F !important; }
 
-/* ── General text contrast ───────────────────────────────────────────── */
-.stMarkdown p, .stMarkdown li { color: #CBD5E1; }
-.stMarkdown h1, .stMarkdown h2, .stMarkdown h3 { color: #F1F5F9; }
-/* Make captions readable */
-.stCaption, [data-testid="stCaptionContainer"] { color: #94A3B8 !important; }
-/* Dataframe / table text */
-[data-testid="stDataFrame"] { color: #E2E8F0; }
+/* ── Metric widgets ──────────────────────────────────────────────────── */
+[data-testid="stMetric"] {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    padding: 12px 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+[data-testid="stMetricLabel"] { color: #64748B !important; font-size: 12px !important; }
+[data-testid="stMetricValue"] { color: #0F172A !important; font-weight: 700 !important; }
 </style>
 """, unsafe_allow_html=True)
 
-PC  = ["#38BDF8", "#34D399", "#FBBF24", "#F87171", "#A78BFA", "#2DD4BF"]
-TPL = "plotly_dark"
+TPL = "plotly_white"
+PC  = ["#1D4ED8", "#059669", "#D97706", "#DC2626", "#7C3AED", "#0891B2", "#EA580C", "#65A30D"]
+
+# Plotly chart config — enables scroll-to-zoom and pan on all charts
+_CHART_CONFIG = {"scrollZoom": True, "displayModeBar": True, "modeBarButtonsToRemove": ["lasso2d", "select2d"]}
 
 
 # ── Session state ─────────────────────────────────────────────────────────────
@@ -198,6 +227,33 @@ def kpi(col, label, value, sub=None):
 
 def section(label):
     st.markdown(f'<div class="sec-hdr">{label}</div>', unsafe_allow_html=True)
+
+# ── Valuation curve (EV/EBITDA multiples by size tier) ────────────────────
+# Calibrated from: UHY 2024, First Page Sage 2025, Raincatcher, Kroll M&A data
+# Reflects quality inspection / containment staffing (above plain light industrial,
+# below pure professional staffing). Midpoint of market range at each tier.
+_VALUATION_CURVE = [
+    (0,          2.5),   # EBITDA < $250K  — main-street sale, high key-person risk
+    (250_000,    3.5),   # $250K – $500K   — small business; limited buyer pool
+    (500_000,    4.5),   # $500K – $1M     — lower MM entry; M&A process viable
+    (1_000_000,  5.0),   # $1M – $2M       — light industrial / inspection LMM range
+    (2_000_000,  6.0),   # $2M – $5M       — mid-market; PE add-on / platform interest
+    (5_000_000,  7.5),   # $5M+            — strategic value; recurring revenue premium
+]
+
+def _ev_multiple(ebitda: float) -> float:
+    """Interpolated EV/EBITDA multiple based on trailing EBITDA size."""
+    if ebitda <= 0:
+        return _VALUATION_CURVE[0][1]
+    floors = [c[0] for c in _VALUATION_CURVE]
+    mults  = [c[1] for c in _VALUATION_CURVE]
+    if ebitda >= floors[-1]:
+        return mults[-1]
+    for i in range(len(floors) - 1):
+        if floors[i] <= ebitda < floors[i + 1]:
+            t = (ebitda - floors[i]) / (floors[i + 1] - floors[i])
+            return mults[i] + t * (mults[i + 1] - mults[i])
+    return mults[0]
 
 def run_and_store():
     with st.spinner("Calculating…"):
@@ -611,7 +667,7 @@ with tab_inputs:
     fig_hc_inp = px.bar(hc_prev, x="period", y="inspectors", template=TPL,
                         title="Inspectors Staffed per Month", color_discrete_sequence=[PC[0]])
     fig_hc_inp.update_layout(height=200, margin=dict(l=10,r=10,t=36,b=10))
-    st.plotly_chart(fig_hc_inp, use_container_width=True)
+    st.plotly_chart(fig_hc_inp, use_container_width=True, config=_CHART_CONFIG)
 
     hc_df  = pd.DataFrame({"Period": month_labels, "Inspectors": hc})
     edited = st.data_editor(hc_df, column_config={
@@ -1099,30 +1155,51 @@ with tab_brief:
                 )
 
         fig_loc.update_layout(template=TPL, height=340, margin=dict(l=10,r=10,t=10,b=10),
-                              legend=dict(orientation="h", y=-0.2), yaxis=dict(tickformat="$,.0f"))
-        st.plotly_chart(fig_loc, use_container_width=True)
+                              legend=dict(orientation="h", y=-0.2), yaxis=dict(tickformat="$,.0f"),
+                              xaxis=dict(rangeslider=dict(visible=True, thickness=0.05)))
+        st.plotly_chart(fig_loc, use_container_width=True, config=_CHART_CONFIG)
 
-    # ── 3. When does money come back? (Cumulative cash flow) ──────────────
+    # ── 3. EBITDA trajectory + implied company valuation ──────────────────
     with _brief_c2:
-        section("Cumulative Net Income")
+        section("EBITDA & Implied Company Valuation")
         mo_cf = mo.copy()
-        mo_cf["cumulative_ni"] = mo_cf["ebitda_after_interest"].cumsum()
+        # Use trailing-12-month EBITDA for valuation (rolling sum; use point EBITDA for first 12 months)
+        mo_cf["cumulative_ebitda"] = mo_cf["ebitda"].cumsum()
+        mo_cf["ttm_ebitda"] = mo_cf["ebitda"].rolling(12, min_periods=1).sum()
+        mo_cf["implied_ev"]  = mo_cf["ttm_ebitda"].apply(
+            lambda e: e * _ev_multiple(e) if e > 0 else 0
+        )
+        mo_cf["ev_multiple"] = mo_cf["ttm_ebitda"].apply(
+            lambda e: _ev_multiple(e) if e > 0 else 0
+        )
 
         fig_cf = go.Figure()
-        fig_cf.add_trace(go.Scatter(
-            x=mo_cf["period"], y=mo_cf["cumulative_ni"],
-            name="Cumulative Net Income", mode="lines",
-            line=dict(color=PC[1], width=2.5),
-            fill="tozeroy",
-            fillcolor="rgba(16,185,129,0.07)",
-        ))
-        fig_cf.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1.5,
-                         annotation_text="Break-Even", annotation_font_color="#EF4444",
-                         annotation_position="bottom right")
 
-        _pos_rows = mo_cf[mo_cf["cumulative_ni"] > 0]
+        # EBITDA area (primary y-axis)
+        fig_cf.add_trace(go.Scatter(
+            x=mo_cf["period"], y=mo_cf["ebitda"],
+            name="Monthly EBITDA", mode="lines",
+            line=dict(color=PC[0], width=2),
+            fill="tozeroy",
+            fillcolor="rgba(59,130,246,0.08)",
+            yaxis="y1",
+        ))
+
+        # Implied Enterprise Value (secondary y-axis)
+        fig_cf.add_trace(go.Scatter(
+            x=mo_cf["period"], y=mo_cf["implied_ev"],
+            name="Implied Company Value (EV)", mode="lines",
+            line=dict(color=PC[2], width=2.5, dash="dot"),
+            yaxis="y2",
+        ))
+
+        # Breakeven line
+        fig_cf.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1,
+                         yref="y1")
+
+        # Mark first month of positive EBITDA
+        _pos_rows = mo_cf[mo_cf["ebitda"] > 0]
         if len(_pos_rows):
-            _cross_idx    = _pos_rows.index[0]
             _cross_period = _pos_rows.iloc[0]["period"]
             fig_cf.add_shape(
                 type="line", x0=_cross_period, x1=_cross_period, y0=0, y1=1,
@@ -1131,7 +1208,7 @@ with tab_brief:
             )
             fig_cf.add_annotation(
                 x=_cross_period, y=0.98, xref="x", yref="paper",
-                text=f"Breakeven: {_cross_period}", font=dict(color=PC[1], size=10),
+                text=f"EBITDA positive: {_cross_period}", font=dict(color=PC[1], size=10),
                 showarrow=False, textangle=-90,
                 xanchor="right", yanchor="top"
             )
@@ -1139,9 +1216,28 @@ with tab_brief:
         fig_cf.update_layout(
             template=TPL, height=340, margin=dict(l=10, r=10, t=10, b=10),
             legend=dict(orientation="h", y=-0.2),
-            yaxis=dict(tickformat="$,.0f", title="Cumulative Net Income ($)"),
+            yaxis=dict(tickformat="$,.0f", title="Monthly EBITDA ($)", side="left"),
+            yaxis2=dict(
+                tickformat="$,.0f", title="Implied EV ($)",
+                overlaying="y", side="right", showgrid=False,
+            ),
         )
         st.plotly_chart(fig_cf, use_container_width=True)
+
+        # Narrative callout below chart
+        _last_ebitda = mo_cf["ebitda"].iloc[-1]
+        _last_ev     = mo_cf["implied_ev"].iloc[-1]
+        _last_mult   = mo_cf["ev_multiple"].iloc[-1]
+        _ss_ebitda   = mo_cf[mo_cf["ebitda"] > 0]["ebitda"].iloc[-3:].mean() if mo_cf["ebitda"].gt(0).any() else 0
+        _ss_ev       = _ss_ebitda * _ev_multiple(_ss_ebitda) if _ss_ebitda > 0 else 0
+        _ss_mult     = _ev_multiple(_ss_ebitda) if _ss_ebitda > 0 else 0
+        if _ss_ev > 0:
+            st.caption(
+                f"At steady state (~{_ss_ebitda:,.0f}/mo EBITDA), implied exit value is "
+                f"**${_ss_ev * 12:,.0f}** ({_ss_mult:.1f}x trailing EBITDA). "
+                f"Multiple expands as EBITDA grows — reflects market M&A data for "
+                f"containment/inspection staffing (UHY, First Page Sage, 2024–25)."
+            )
 
     # ── 4. Risk callouts (only show if triggered) ─────────────────────────
     if n_loc or n_mgmt or _burden > 0.35 or _nd > 90 or (0 < _margin_yr1 < 0.10) or (_min_fccr > 0 and _min_fccr < 1.1) or _peak_loc_util > 0.85:
@@ -1187,7 +1283,7 @@ with tab_brief:
     st.plotly_chart(_bar(mo, "period",
         ["inspectors_avg","team_leads_avg","n_opscoord","n_fieldsup","n_regionalmgr"],
         ["Inspectors","Team Leads","Ops Coordinators","Field Supervisors","Regional Managers"],
-        "Average Monthly Headcount", tickformat=",.0f"), use_container_width=True)
+        "Average Monthly Headcount", tickformat=",.0f"), use_container_width=True, config=_CHART_CONFIG)
 
     st.divider()
 
@@ -1325,7 +1421,7 @@ with tab_detail:
                       ["Hourly Labor","Salaried Mgmt","Overhead"], "Monthly Cost Stack")
         fig_rv.add_trace(go.Scatter(x=mo["period"], y=mo["revenue"], name="Revenue",
             mode="lines", line=dict(color=PC[1], width=2)))
-        st.plotly_chart(fig_rv, use_container_width=True)
+        st.plotly_chart(fig_rv, use_container_width=True, config=_CHART_CONFIG)
 
         _fc1, _fc2 = st.columns(2)
         with _fc1:
@@ -1333,13 +1429,13 @@ with tab_detail:
             st.plotly_chart(_line(mo, "period",
                 ["ebitda", "ebitda_after_interest"],
                 ["Operating Profit", "Net Income (after interest)"],
-                "Monthly Profit"), use_container_width=True)
+                "Monthly Profit"), use_container_width=True, config=_CHART_CONFIG)
         with _fc2:
             section("Profit Margins")
             st.plotly_chart(_line(mo, "period",
                 ["ebitda_margin", "ebitda_ai_margin"],
                 ["Operating Margin", "Net Margin"],
-                "Monthly Margins", pct_y=True), use_container_width=True)
+                "Monthly Margins", pct_y=True), use_container_width=True, config=_CHART_CONFIG)
 
         st.divider()
 
@@ -1376,7 +1472,7 @@ with tab_detail:
                 yaxis2=dict(tickformat="$,.0f", title="Credit Line ($)",
                             overlaying="y", side="right", showgrid=False),
             )
-            st.plotly_chart(fig_pf, use_container_width=True)
+            st.plotly_chart(fig_pf, use_container_width=True, config=_CHART_CONFIG)
 
         st.divider()
 
@@ -1407,7 +1503,7 @@ with tab_detail:
         ))
         fig_wf.update_layout(template=TPL, height=300, margin=dict(l=10,r=10,t=10,b=10),
                              yaxis=dict(tickformat="$,.0f"))
-        st.plotly_chart(fig_wf, use_container_width=True)
+        st.plotly_chart(fig_wf, use_container_width=True, config=_CHART_CONFIG)
 
         st.divider()
 
@@ -1454,7 +1550,7 @@ with tab_detail:
         fig_hc  = px.bar(hc_prev, x="period", y="inspectors", template=TPL,
                          title="Inspectors Staffed per Month", color_discrete_sequence=[PC[0]])
         fig_hc.update_layout(height=240, margin=dict(l=10,r=10,t=36,b=10))
-        st.plotly_chart(fig_hc, use_container_width=True)
+        st.plotly_chart(fig_hc, use_container_width=True, config=_CHART_CONFIG)
 
         section("Edit -- All 120 Months")
         hc_df  = pd.DataFrame({"Period": month_labels, "Inspectors": hc})
@@ -1686,7 +1782,7 @@ with tab_detail:
                 hole=0.42, marker_colors=PC[:4]
             ))
             fig_rp.update_layout(template=TPL, height=280, title="Revenue by Component", margin=dict(l=10,r=10,t=40,b=10))
-            st.plotly_chart(fig_rp, use_container_width=True)
+            st.plotly_chart(fig_rp, use_container_width=True, config=_CHART_CONFIG)
         with c2:
             fig_ep = go.Figure(go.Pie(
                 labels=["Hourly Labor","Salaried Management","Turnover & Replacement","Fixed Overhead"],
@@ -1694,7 +1790,7 @@ with tab_detail:
                 hole=0.42, marker_colors=[PC[3], PC[2], PC[4], PC[5]]
             ))
             fig_ep.update_layout(template=TPL, height=280, title="Expenses by Component", margin=dict(l=10,r=10,t=40,b=10))
-            st.plotly_chart(fig_ep, use_container_width=True)
+            st.plotly_chart(fig_ep, use_container_width=True, config=_CHART_CONFIG)
 
         section("Monthly Revenue vs. Net Income")
         fig_t = go.Figure()
@@ -1706,7 +1802,7 @@ with tab_detail:
         fig_t.add_hline(y=0, line_dash="dot", line_color="#444", line_width=1)
         fig_t.update_layout(template=TPL, height=300, margin=dict(l=10,r=10,t=10,b=10),
                             legend=dict(orientation="h", y=-0.2), yaxis=dict(tickformat="$,.0f"))
-        st.plotly_chart(fig_t, use_container_width=True)
+        st.plotly_chart(fig_t, use_container_width=True, config=_CHART_CONFIG)
 
         st.divider()
 
@@ -1833,12 +1929,12 @@ with tab_detail:
                 fig_nd1 = go.Figure(go.Scatter(x=nd_df["value"], y=nd_df["peak_loc"], mode="lines+markers", line=dict(color=PC[0], width=2), marker=dict(size=7)))
                 fig_nd1.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Peak Credit Line vs. Payment Terms", xaxis_title="Net Days", yaxis=dict(tickformat="$,.0f"))
                 fig_nd1.add_hline(y=float(a["max_loc"]), line_dash="dot", line_color=PC[3], annotation_text="Your Credit Limit")
-                st.plotly_chart(fig_nd1, use_container_width=True)
+                st.plotly_chart(fig_nd1, use_container_width=True, config=_CHART_CONFIG)
             with c2:
                 fig_nd2 = go.Figure(go.Scatter(x=nd_df["value"], y=nd_df["ebitda_ai_margin"], mode="lines+markers", line=dict(color=PC[1], width=2), marker=dict(size=7)))
                 fig_nd2.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Income Margin vs. Payment Terms", xaxis_title="Net Days", yaxis=dict(tickformat=".1%"))
                 fig_nd2.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
-                st.plotly_chart(fig_nd2, use_container_width=True)
+                st.plotly_chart(fig_nd2, use_container_width=True, config=_CHART_CONFIG)
             _fmt_table(nd_df[["value","peak_loc","annual_interest","ebitda_ai","ebitda_ai_margin"]].rename(columns={"value":"Net Days","peak_loc":"Peak Credit","annual_interest":"Total Interest","ebitda_ai":"Net Income","ebitda_ai_margin":"Net Margin"}), dollar_cols=["Peak Credit","Total Interest","Net Income"], pct_cols=["Net Margin"], highlight_neg="Net Income")
 
         with s2:
@@ -1851,11 +1947,11 @@ with tab_detail:
                 fig_br1 = go.Figure(go.Scatter(x=br_df["value"], y=br_df["ebitda_ai_margin"], mode="lines+markers", line=dict(color=PC[1], width=2), marker=dict(size=7)))
                 fig_br1.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Margin vs. Bill Rate", xaxis_title="Bill Rate ($/hr)", yaxis=dict(tickformat=".1%"))
                 fig_br1.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
-                st.plotly_chart(fig_br1, use_container_width=True)
+                st.plotly_chart(fig_br1, use_container_width=True, config=_CHART_CONFIG)
             with c2:
                 fig_br2 = go.Figure(go.Scatter(x=br_df["value"], y=br_df["ebitda_ai"], mode="lines+markers", line=dict(color=PC[0], width=2), marker=dict(size=7)))
                 fig_br2.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Total Net Income vs. Bill Rate", xaxis_title="Bill Rate ($/hr)", yaxis=dict(tickformat="$,.0f"))
-                st.plotly_chart(fig_br2, use_container_width=True)
+                st.plotly_chart(fig_br2, use_container_width=True, config=_CHART_CONFIG)
             _fmt_table(br_df[["value","ebitda_margin","ebitda_ai_margin","peak_loc","ebitda_ai"]].rename(columns={"value":"Bill Rate","ebitda_margin":"Oper. Margin","ebitda_ai_margin":"Net Margin","peak_loc":"Peak Credit","ebitda_ai":"Net Income"}), dollar_cols=["Peak Credit","Net Income"], pct_cols=["Oper. Margin","Net Margin"])
 
         with s3:
@@ -1880,11 +1976,11 @@ with tab_detail:
                     showarrow=False, textangle=-90,
                     xanchor="right", yanchor="top"
                 )
-                st.plotly_chart(fig_b1, use_container_width=True)
+                st.plotly_chart(fig_b1, use_container_width=True, config=_CHART_CONFIG)
             with c2:
                 fig_b2 = go.Figure(go.Scatter(x=burd_df["pct"], y=burd_df["peak_loc"], mode="lines+markers", line=dict(color=PC[3], width=2), marker=dict(size=7)))
                 fig_b2.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Peak Credit Line vs. Burden Rate", xaxis_title="Burden (%)", yaxis=dict(tickformat="$,.0f"))
-                st.plotly_chart(fig_b2, use_container_width=True)
+                st.plotly_chart(fig_b2, use_container_width=True, config=_CHART_CONFIG)
             _fmt_table(burd_df[["pct","ebitda_ai","ebitda_ai_margin","peak_loc"]].rename(columns={"pct":"Burden (%)","ebitda_ai":"Net Income","ebitda_ai_margin":"Net Margin","peak_loc":"Peak Credit"}), dollar_cols=["Net Income","Peak Credit"], pct_cols=["Net Margin"])
 
         with s4:
@@ -1896,11 +1992,11 @@ with tab_detail:
             with c1:
                 fig_ot1 = go.Figure(go.Scatter(x=ot_df["value"], y=ot_df["ebitda_ai_margin"], mode="lines+markers", line=dict(color=PC[1], width=2), marker=dict(size=7)))
                 fig_ot1.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Margin vs. OT Hours/Week", xaxis_title="OT Hrs/wk", yaxis=dict(tickformat=".1%"))
-                st.plotly_chart(fig_ot1, use_container_width=True)
+                st.plotly_chart(fig_ot1, use_container_width=True, config=_CHART_CONFIG)
             with c2:
                 fig_ot2 = go.Figure(go.Scatter(x=ot_df["value"], y=ot_df["total_revenue"], mode="lines+markers", line=dict(color=PC[0], width=2), marker=dict(size=7)))
                 fig_ot2.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Total Revenue vs. OT Hours/Week", xaxis_title="OT Hrs/wk", yaxis=dict(tickformat="$,.0f"))
-                st.plotly_chart(fig_ot2, use_container_width=True)
+                st.plotly_chart(fig_ot2, use_container_width=True, config=_CHART_CONFIG)
             _fmt_table(ot_df[["value","ebitda_margin","ebitda_ai_margin","total_revenue","ebitda_ai"]].rename(columns={"value":"OT Hrs/wk","ebitda_margin":"Oper. Margin","ebitda_ai_margin":"Net Margin","total_revenue":"Total Revenue","ebitda_ai":"Net Income"}), dollar_cols=["Total Revenue","Net Income"], pct_cols=["Oper. Margin","Net Margin"])
 
         with s5:
@@ -1917,7 +2013,7 @@ with tab_detail:
                 fig_u.add_trace(go.Scatter(x=util_df["pct"], y=util_df["ebitda_ai_margin"], mode="lines+markers", name="Net Margin", line=dict(color=PC[1], width=2), marker=dict(size=7)))
                 fig_u.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
                 fig_u.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Margin vs. Utilization Rate", xaxis_title="Utilization (%)", yaxis=dict(tickformat=".1%"))
-                st.plotly_chart(fig_u, use_container_width=True)
+                st.plotly_chart(fig_u, use_container_width=True, config=_CHART_CONFIG)
                 _fmt_table(util_df[["pct","ebitda_ai_margin","ebitda_ai","peak_loc"]].rename(columns={"pct":"Utilization (%)","ebitda_ai_margin":"Net Margin","ebitda_ai":"Net Income","peak_loc":"Peak Credit"}), dollar_cols=["Net Income","Peak Credit"], pct_cols=["Net Margin"])
             with sb:
                 section("Inspector Wage Inflation")
@@ -1941,7 +2037,7 @@ with tab_detail:
                 )
                 fig_w.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
                 fig_w.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Margin vs. Inspector Wage", xaxis_title="Wage ($/hr)", yaxis=dict(tickformat=".1%"))
-                st.plotly_chart(fig_w, use_container_width=True)
+                st.plotly_chart(fig_w, use_container_width=True, config=_CHART_CONFIG)
                 _fmt_table(wage_df[["value","ebitda_ai_margin","ebitda_ai","peak_loc"]].rename(columns={"value":"Wage ($/hr)","ebitda_ai_margin":"Net Margin","ebitda_ai":"Net Income","peak_loc":"Peak Credit"}), dollar_cols=["Net Income","Peak Credit"], pct_cols=["Net Margin"])
 
         with s6:
@@ -1957,7 +2053,7 @@ with tab_detail:
                 fig_bd.add_trace(go.Scatter(x=bd_df["pct_lbl"], y=bd_df["ebitda_ai"], mode="lines+markers", name="Net Income", line=dict(color=PC[3], width=2), marker=dict(size=7)))
                 fig_bd.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
                 fig_bd.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Total Net Income vs. Bad Debt Rate", xaxis_title="Write-Off Rate (%)", yaxis=dict(tickformat="$,.0f"))
-                st.plotly_chart(fig_bd, use_container_width=True)
+                st.plotly_chart(fig_bd, use_container_width=True, config=_CHART_CONFIG)
                 _fmt_table(bd_df[["pct_lbl","ebitda_ai_margin","ebitda_ai"]].rename(columns={"pct_lbl":"Bad Debt (%)","ebitda_ai_margin":"Net Margin","ebitda_ai":"Net Income"}), dollar_cols=["Net Income"], pct_cols=["Net Margin"], highlight_neg="Net Income")
             with sd:
                 section("Inspector Annual Turnover Rate")
@@ -1980,7 +2076,7 @@ with tab_detail:
                     xanchor="right", yanchor="top"
                 )
                 fig_to.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Income vs. Inspector Turnover", xaxis_title="Annual Turnover Rate (%)", yaxis=dict(tickformat="$,.0f"))
-                st.plotly_chart(fig_to, use_container_width=True)
+                st.plotly_chart(fig_to, use_container_width=True, config=_CHART_CONFIG)
                 _fmt_table(to_df[["pct_lbl","ebitda_ai_margin","ebitda_ai"]].rename(columns={"pct_lbl":"Turnover (%)","ebitda_ai_margin":"Net Margin","ebitda_ai":"Net Income"}), dollar_cols=["Net Income"], pct_cols=["Net Margin"], highlight_neg="Net Income")
 
         st.divider()
@@ -2009,7 +2105,7 @@ with tab_detail:
                 prog.empty()
                 hm_df = pd.DataFrame(rows)
                 fig_hm = _heatmap(hm_df, "Bill Rate", "Burden", "Net Margin", "Net Income Margin -- Bill Rate x Burden", fmt=".1%")
-                st.plotly_chart(fig_hm, use_container_width=True)
+                st.plotly_chart(fig_hm, use_container_width=True, config=_CHART_CONFIG)
 
         with hm2:
             if st.button("Run Heatmap: Net Days x Inspectors", use_container_width=True):
@@ -2031,7 +2127,7 @@ with tab_detail:
                 prog2.empty()
                 hm_df2 = pd.DataFrame(rows)
                 fig_hm2 = _heatmap(hm_df2, "Net Days", "Inspectors", "Peak LOC", "Peak Credit Line -- Net Days x Inspector Count", fmt="$,.0f", reverse=True)
-                st.plotly_chart(fig_hm2, use_container_width=True)
+                st.plotly_chart(fig_hm2, use_container_width=True, config=_CHART_CONFIG)
 
         with hm3:
             if st.button("Run Heatmap: Bill Rate x Net Days", use_container_width=True):
@@ -2052,7 +2148,7 @@ with tab_detail:
                 prog3.empty()
                 hm_df3 = pd.DataFrame(rows3)
                 fig_hm3 = _heatmap(hm_df3, "Bill Rate", "Net Days", "Annual Interest", "Annual Interest Cost -- Bill Rate x Net Days", fmt="$,.0f", reverse=True)
-                st.plotly_chart(fig_hm3, use_container_width=True)
+                st.plotly_chart(fig_hm3, use_container_width=True, config=_CHART_CONFIG)
 
         st.divider()
         if st.button("Export Full Report + Sensitivity to Excel"):
