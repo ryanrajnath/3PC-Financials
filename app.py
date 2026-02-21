@@ -282,7 +282,7 @@ def _line(df, x, ys, names, title, pct_y=False):
                                      line=dict(color=c, width=2)))
     fig.update_layout(template=TPL, title=title, height=300,
                       margin=dict(l=10, r=10, t=36, b=60),
-                      legend=dict(orientation="h", y=-0.35),
+                      legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom"),
                       yaxis=dict(tickformat=".0%" if pct_y else "$,.0f"))
     fig.add_hline(y=0, line_dash="dot", line_color="#444", line_width=1)
     return fig
@@ -294,7 +294,7 @@ def _bar(df, x, ys, names, title, tickformat="$,.0f"):
             fig.add_trace(go.Bar(x=df[x], y=df[y], name=nm, marker_color=c))
     fig.update_layout(template=TPL, title=title, barmode="stack", height=300,
                       margin=dict(l=10, r=10, t=36, b=60),
-                      legend=dict(orientation="h", y=-0.35),
+                      legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom"),
                       yaxis=dict(tickformat=tickformat))
     return fig
 
@@ -373,7 +373,7 @@ def _render_loc_chart(mo, wdf, a):
             )
 
     fig_loc.update_layout(template=TPL, height=340, margin=dict(l=10, r=10, t=10, b=60),
-                          legend=dict(orientation="h", y=-0.3), yaxis=dict(tickformat="$,.0f"),
+                          legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom"), yaxis=dict(tickformat="$,.0f"),
                           xaxis=dict(rangeslider=dict(visible=True, thickness=0.05)))
     st.plotly_chart(fig_loc, use_container_width=True, config=_CHART_CONFIG)
 
@@ -423,7 +423,7 @@ def _render_ebitda_chart(mo_in):
 
     fig_cf.update_layout(
         template=TPL, height=340, margin=dict(l=10, r=10, t=10, b=60),
-        legend=dict(orientation="h", y=-0.3),
+        legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom"),
         xaxis=dict(rangeslider=dict(visible=True, thickness=0.05)),
         yaxis=dict(tickformat="$,.0f", title="Trailing 12-Mo EBITDA ($)", side="left"),
         yaxis2=dict(
@@ -1606,7 +1606,7 @@ with tab_detail:
             fig_pf.update_layout(
                 template=TPL, height=320, barmode="overlay",
                 margin=dict(l=10, r=10, t=10, b=60),
-                legend=dict(orientation="h", y=-0.35),
+                legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom"),
                 yaxis=dict(tickformat="$,.0f", title="Weekly Cash ($)"),
                 yaxis2=dict(tickformat="$,.0f", title="Credit Line ($)",
                             overlaying="y", side="right", showgrid=False),
@@ -1940,7 +1940,7 @@ with tab_detail:
                                    line=dict(color=PC[1], width=2)))
         fig_t.add_hline(y=0, line_dash="dot", line_color="#444", line_width=1)
         fig_t.update_layout(template=TPL, height=300, margin=dict(l=10,r=10,t=10,b=60),
-                            legend=dict(orientation="h", y=-0.3), yaxis=dict(tickformat="$,.0f"))
+                            legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom"), yaxis=dict(tickformat="$,.0f"))
         st.plotly_chart(fig_t, use_container_width=True, config=_CHART_CONFIG)
 
         st.divider()
