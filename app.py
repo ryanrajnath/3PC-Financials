@@ -32,7 +32,7 @@ st.markdown("""
 /* ── Base & Layout ─────────────────────────────────────────────────── */
 #MainMenu, footer { visibility: hidden; }
 header { visibility: hidden; height: 0; }
-.block-container { padding-top: 0.75rem; padding-bottom: 2rem; max-width: 1400px; }
+.block-container { padding-top: 1rem; padding-bottom: 2.5rem; max-width: 1400px; }
 
 /* ── Tab Navigation ─────────────────────────────────────────────────── */
 .stTabs [data-baseweb="tab-list"] {
@@ -43,84 +43,87 @@ header { visibility: hidden; height: 0; }
 }
 .stTabs [data-baseweb="tab"] {
     background: transparent !important;
-    color: #64748B !important;
+    color: #94A3B8 !important;
     border-radius: 0 !important;
-    padding: 10px 22px !important;
+    padding: 10px 24px !important;
     font-size: 13px !important;
     font-weight: 500 !important;
+    letter-spacing: 0.3px !important;
     border-bottom: 2px solid transparent !important;
     margin-bottom: -2px !important;
+    transition: color 0.15s ease !important;
 }
 .stTabs [data-baseweb="tab"]:hover {
-    color: #1D4ED8 !important;
-    background: #F1F5F9 !important;
-}
-.stTabs [aria-selected="true"][data-baseweb="tab"] {
-    color: #1D4ED8 !important;
-    font-weight: 700 !important;
-    border-bottom: 2px solid #1D4ED8 !important;
+    color: #1E293B !important;
     background: transparent !important;
 }
-.stTabs [data-baseweb="tab-panel"] { padding-top: 1rem !important; }
+.stTabs [aria-selected="true"][data-baseweb="tab"] {
+    color: #0F172A !important;
+    font-weight: 700 !important;
+    border-bottom: 2px solid #0EA5E9 !important;
+    background: transparent !important;
+}
+.stTabs [data-baseweb="tab-panel"] { padding-top: 1.25rem !important; }
 
 /* ── Section Headers ─────────────────────────────────────────────────── */
 .sec-hdr {
     font-size: 11px;
     font-weight: 700;
-    letter-spacing: 1px;
+    letter-spacing: 1.2px;
     text-transform: uppercase;
-    color: #64748B;
+    color: #94A3B8;
     padding: 0.5rem 0 0.25rem 0;
-    border-bottom: 1px solid #E2E8F0;
     margin-bottom: 0.75rem;
-    margin-top: 0.5rem;
+    margin-top: 1.25rem;
 }
 
 /* ── KPI Cards ───────────────────────────────────────────────────────── */
 .kpi-card {
     background: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    border-radius: 8px;
-    padding: 14px 18px;
+    border: none;
+    border-left: 3px solid #0EA5E9;
+    border-radius: 6px;
+    padding: 16px 20px;
     margin-bottom: 10px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 .kpi-label {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
-    color: #64748B;
+    color: #94A3B8;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
+    letter-spacing: 0.8px;
+    margin-bottom: 6px;
 }
 .kpi-value {
-    font-size: 22px;
+    font-size: 26px;
     font-weight: 700;
     color: #0F172A;
     line-height: 1.2;
+    font-variant-numeric: tabular-nums;
 }
 .kpi-sub {
     font-size: 11px;
     color: #94A3B8;
-    margin-top: 2px;
+    margin-top: 3px;
 }
 
 /* ── App Header ──────────────────────────────────────────────────────── */
-.app-header {
-    padding: 12px 0 16px 0;
-    border-bottom: 1px solid #E2E8F0;
-    margin-bottom: 12px;
+.app-hdr {
+    padding: 14px 0 18px 0;
+    margin-bottom: 14px;
 }
-.app-title {
-    font-size: 20px;
-    font-weight: 700;
+.app-hdr-title {
+    font-size: 26px;
+    font-weight: 800;
     color: #0F172A;
-    letter-spacing: -0.3px;
+    letter-spacing: -0.5px;
 }
-.app-subtitle {
+.app-hdr-sub {
     font-size: 12px;
-    color: #64748B;
-    margin-top: 2px;
+    color: #94A3B8;
+    margin-top: 3px;
+    letter-spacing: 0.3px;
 }
 
 /* ── Status Indicators ───────────────────────────────────────────────── */
@@ -128,43 +131,82 @@ header { visibility: hidden; height: 0; }
     font-size: 12px;
     color: #D97706;
     background: #FFFBEB;
-    border: 1px solid #FDE68A;
-    border-radius: 6px;
-    padding: 6px 12px;
+    border: none;
+    border-left: 3px solid #F59E0B;
+    border-radius: 4px;
+    padding: 6px 14px;
     text-align: center;
 }
 .status-ok {
     font-size: 12px;
     color: #059669;
     background: #ECFDF5;
-    border: 1px solid #A7F3D0;
-    border-radius: 6px;
-    padding: 6px 12px;
+    border: none;
+    border-left: 3px solid #10B981;
+    border-radius: 4px;
+    padding: 6px 14px;
     text-align: center;
 }
 
 /* ── Info/callout boxes ──────────────────────────────────────────────── */
 .info-box {
-    background: #EFF6FF;
-    border: 1px solid #BFDBFE;
-    border-radius: 8px;
+    background: #F0F9FF;
+    border: none;
+    border-left: 3px solid #0EA5E9;
+    border-radius: 4px;
     padding: 16px 20px;
-    color: #1E40AF;
+    color: #0C4A6E;
     font-size: 14px;
     margin: 12px 0;
 }
 
+/* ── Verdict banners ─────────────────────────────────────────────────── */
+.verdict-pass {
+    background: #F0FDF4;
+    border: none;
+    border-left: 3px solid #10B981;
+    border-radius: 4px;
+    padding: 14px 20px;
+    color: #065F46;
+    font-size: 14px;
+    margin: 8px 0;
+    line-height: 1.6;
+}
+.verdict-fail {
+    background: #FEF2F2;
+    border: none;
+    border-left: 3px solid #EF4444;
+    border-radius: 4px;
+    padding: 14px 20px;
+    color: #991B1B;
+    font-size: 14px;
+    margin: 8px 0;
+    line-height: 1.6;
+}
+.verdict-warn {
+    background: #FFFBEB;
+    border: none;
+    border-left: 3px solid #F59E0B;
+    border-radius: 4px;
+    padding: 14px 20px;
+    color: #92400E;
+    font-size: 14px;
+    margin: 8px 0;
+    line-height: 1.6;
+}
+
 /* ── Buttons ─────────────────────────────────────────────────────────── */
 .stButton > button[kind="primary"] {
-    background: #1D4ED8 !important;
+    background: #0EA5E9 !important;
     color: white !important;
     border: none !important;
     border-radius: 6px !important;
     font-weight: 600 !important;
     font-size: 13px !important;
+    letter-spacing: 0.3px !important;
 }
 .stButton > button[kind="primary"]:hover {
-    background: #1E40AF !important;
+    background: #0284C7 !important;
 }
 
 /* ── Sidebar ─────────────────────────────────────────────────────────── */
@@ -176,18 +218,39 @@ header { visibility: hidden; height: 0; }
 /* ── Metric widgets ──────────────────────────────────────────────────── */
 [data-testid="stMetric"] {
     background: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    border-radius: 8px;
-    padding: 12px 16px;
+    border: none;
+    border-left: 3px solid #0EA5E9;
+    border-radius: 6px;
+    padding: 14px 18px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
-[data-testid="stMetricLabel"] { color: #64748B !important; font-size: 12px !important; }
-[data-testid="stMetricValue"] { color: #0F172A !important; font-weight: 700 !important; }
+[data-testid="stMetricLabel"] {
+    color: #94A3B8 !important;
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+}
+[data-testid="stMetricValue"] {
+    color: #0F172A !important;
+    font-weight: 700 !important;
+    font-variant-numeric: tabular-nums !important;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────── */
+[data-testid="stDataFrame"] th {
+    text-transform: uppercase !important;
+    font-size: 10px !important;
+    letter-spacing: 0.5px !important;
+    color: #64748B !important;
+}
+[data-testid="stDataFrame"] td {
+    font-variant-numeric: tabular-nums !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
 TPL = "plotly_white"
-PC  = ["#1D4ED8", "#059669", "#D97706", "#DC2626", "#7C3AED", "#0891B2", "#EA580C", "#65A30D"]
+PC  = ["#0EA5E9", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#06B6D4", "#F97316", "#84CC16"]
 
 # Plotly chart config — enables scroll-to-zoom and pan on all charts
 _CHART_CONFIG = {"scrollZoom": True, "displayModeBar": True, "modeBarButtonsToRemove": ["lasso2d", "select2d"]}
@@ -280,11 +343,18 @@ def _line(df, x, ys, names, title, pct_y=False):
         if y in df.columns:
             fig.add_trace(go.Scatter(x=df[x], y=df[y], name=nm, mode="lines",
                                      line=dict(color=c, width=2)))
-    fig.update_layout(template=TPL, title=title, height=300,
-                      margin=dict(l=10, r=10, t=36, b=60),
-                      legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom"),
-                      yaxis=dict(tickformat=".0%" if pct_y else "$,.0f"))
-    fig.add_hline(y=0, line_dash="dot", line_color="#444", line_width=1)
+    fig.update_layout(
+        template=TPL, height=320,
+        title=dict(text=title, font=dict(size=13, color="#334155"), x=0, xanchor="left"),
+        margin=dict(l=10, r=10, t=40, b=60),
+        legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom"),
+        plot_bgcolor="#FAFBFC", paper_bgcolor="rgba(0,0,0,0)",
+        yaxis=dict(tickformat=".0%" if pct_y else "$,.0f",
+                   gridcolor="#E2E8F0", zeroline=True, zerolinecolor="#CBD5E1", zerolinewidth=1),
+        xaxis=dict(showgrid=False),
+        hoverlabel=dict(bgcolor="#1E293B", font_color="white", font_size=12),
+    )
+    fig.add_hline(y=0, line_color="#CBD5E1", line_width=1)
     return fig
 
 def _bar(df, x, ys, names, title, tickformat="$,.0f"):
@@ -292,10 +362,17 @@ def _bar(df, x, ys, names, title, tickformat="$,.0f"):
     for y, nm, c in zip(ys, names, PC):
         if y in df.columns:
             fig.add_trace(go.Bar(x=df[x], y=df[y], name=nm, marker_color=c))
-    fig.update_layout(template=TPL, title=title, barmode="stack", height=300,
-                      margin=dict(l=10, r=10, t=36, b=60),
-                      legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom"),
-                      yaxis=dict(tickformat=tickformat))
+    fig.update_layout(
+        template=TPL, barmode="stack", height=320, bargap=0.25,
+        title=dict(text=title, font=dict(size=13, color="#334155"), x=0, xanchor="left"),
+        margin=dict(l=10, r=10, t=40, b=60),
+        legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom"),
+        plot_bgcolor="#FAFBFC", paper_bgcolor="rgba(0,0,0,0)",
+        yaxis=dict(tickformat=tickformat, gridcolor="#E2E8F0",
+                   zeroline=True, zerolinecolor="#CBD5E1", zerolinewidth=1),
+        xaxis=dict(showgrid=False),
+        hoverlabel=dict(bgcolor="#1E293B", font_color="white", font_size=12),
+    )
     return fig
 
 def _fmt_table(df, dollar_cols=None, pct_cols=None, highlight_neg=None,
@@ -372,9 +449,15 @@ def _render_loc_chart(mo, wdf, a):
                 xanchor="right", yanchor="top"
             )
 
-    fig_loc.update_layout(template=TPL, height=340, margin=dict(l=10, r=10, t=10, b=60),
-                          legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom"), yaxis=dict(tickformat="$,.0f"),
-                          xaxis=dict(rangeslider=dict(visible=True, thickness=0.05)))
+    fig_loc.update_layout(
+        template=TPL, height=340, margin=dict(l=10, r=10, t=10, b=60),
+        legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom"),
+        plot_bgcolor="#FAFBFC", paper_bgcolor="rgba(0,0,0,0)",
+        yaxis=dict(tickformat="$,.0f", gridcolor="#E2E8F0",
+                   zeroline=True, zerolinecolor="#CBD5E1", zerolinewidth=1),
+        xaxis=dict(showgrid=False, rangeslider=dict(visible=True, thickness=0.05)),
+        hoverlabel=dict(bgcolor="#1E293B", font_color="white", font_size=12),
+    )
     st.plotly_chart(fig_loc, use_container_width=True, config=_CHART_CONFIG)
 
 
@@ -460,8 +543,11 @@ def _render_ebitda_chart(mo_in):
     fig.update_layout(
         template=TPL, height=340, margin=dict(l=10, r=10, t=10, b=10),
         showlegend=False,
-        xaxis=dict(rangeslider=dict(visible=True, thickness=0.05)),
-        yaxis=dict(tickformat="$,.0f", title="Total Profit Over Time ($)"),
+        plot_bgcolor="#FAFBFC", paper_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(showgrid=False, rangeslider=dict(visible=True, thickness=0.05)),
+        yaxis=dict(tickformat="$,.0f", title="Total Profit Over Time ($)",
+                   gridcolor="#E2E8F0", zeroline=True, zerolinecolor="#CBD5E1", zerolinewidth=1),
+        hoverlabel=dict(bgcolor="#1E293B", font_color="white", font_size=12),
     )
     st.plotly_chart(fig, use_container_width=True, config=_CHART_CONFIG)
 
@@ -675,9 +761,9 @@ with ctrl2:
         st.rerun()
 with ctrl3:
     if is_stale():
-        st.markdown('<div class="status-stale">⚡ Inputs changed — click <b>Run</b></div>', unsafe_allow_html=True)
+        st.markdown('<div class="status-stale">Inputs changed — click <b>Run</b></div>', unsafe_allow_html=True)
     elif st.session_state.run_ts:
-        st.markdown(f'<div class="status-ok">✓ Calculated at {st.session_state.run_ts}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="status-ok">Updated {st.session_state.run_ts}</div>', unsafe_allow_html=True)
 
 if results_ready():
     _, mo_h, _ = st.session_state.results
@@ -771,14 +857,18 @@ if _L1:
 
     # Verdict banner
     if _ss_ebitda > 0 and _peak_rng > 0:
-        st.success(
-            f"**You need {fmt_dollar(_peak_rng)} in credit** (peaks at {_mo_peak_period}). "
-            f"The division turns profitable at **{_be_month}** and makes "
-            f"**{fmt_dollar(_ss_ebitda)}/month** when running — "
-            f"a **{_ropc:.1f}x return** on money deployed."
+        st.markdown(
+            f'<div class="verdict-pass"><strong>You need {fmt_dollar(_peak_rng)} in credit</strong> (peaks at {_mo_peak_period}). '
+            f'The division turns profitable at <strong>{_be_month}</strong> and makes '
+            f'<strong>{fmt_dollar(_ss_ebitda)}/month</strong> when running — '
+            f'a <strong>{_ropc:.1f}x return</strong> on money deployed.</div>',
+            unsafe_allow_html=True,
         )
     else:
-        st.error("Not profitable with these numbers. Try raising the bill rate, adding inspectors, or extending the time range.")
+        st.markdown(
+            '<div class="verdict-fail">Not profitable with these numbers. Try raising the bill rate, adding inspectors, or extending the time range.</div>',
+            unsafe_allow_html=True,
+        )
 
     # 4 KPI cards
     _l1k1, _l1k2, _l1k3, _l1k4 = st.columns(4)
@@ -829,34 +919,39 @@ if _L1:
     qa1, qa2 = st.columns(2)
     with qa1:
         if _ss_ebitda > 0:
-            st.success(
-                f"**Does it work?** Yes — when running at full speed this division generates "
-                f"{fmt_dollar(_ss_ebitda)}/month ({fmt_dollar(_ss_annual)}/year) after all costs and borrowing."
+            st.markdown(
+                f'<div class="verdict-pass"><strong>Does it work?</strong> Yes — when running at full speed this division generates '
+                f'{fmt_dollar(_ss_ebitda)}/month ({fmt_dollar(_ss_annual)}/year) after all costs and borrowing.</div>',
+                unsafe_allow_html=True,
             )
         else:
-            st.error(
-                "**Does it work?** Not at current assumptions. "
-                "Adjust bill rate, headcount, or payment terms."
+            st.markdown(
+                '<div class="verdict-fail"><strong>Does it work?</strong> Not at current assumptions. '
+                'Adjust bill rate, headcount, or payment terms.</div>',
+                unsafe_allow_html=True,
             )
         _max_insp = max(st.session_state.headcount_plan)
         _max_ttm  = mo_full["ebitda"].rolling(12, min_periods=1).sum().max() if len(mo_full) else 0
         _max_ev   = _max_ttm * _ev_multiple(_max_ttm) if _max_ttm > 0 else 0
         if _max_ev > 0:
-            st.info(
-                f"**How big can this become?** At {_max_insp} inspectors, "
-                f"annual profit reaches {fmt_dollar(_max_ttm)} with an implied exit value of "
-                f"{fmt_dollar(_max_ev)} ({_ev_multiple(_max_ttm):.1f}x annual profit)."
+            st.markdown(
+                f'<div class="info-box"><strong>How big can this become?</strong> At {_max_insp} inspectors, '
+                f'annual profit reaches {fmt_dollar(_max_ttm)} with an implied exit value of '
+                f'{fmt_dollar(_max_ev)} ({_ev_multiple(_max_ttm):.1f}x annual profit).</div>',
+                unsafe_allow_html=True,
             )
     with qa2:
         _nd_val = int(a.get("net_days", 60))
-        st.info(
-            f"**What money do you need?** A {fmt_dollar(_max_loc)} credit line sized for "
-            f"{_nd_val}-day payment terms. Peak draw: {fmt_dollar(_peak_rng)} at {_mo_peak_period}."
+        st.markdown(
+            f'<div class="info-box"><strong>What money do you need?</strong> A {fmt_dollar(_max_loc)} credit line sized for '
+            f'{_nd_val}-day payment terms. Peak draw: {fmt_dollar(_peak_rng)} at {_mo_peak_period}.</div>',
+            unsafe_allow_html=True,
         )
-        st.info(
-            "**Does it run without you?** The GM runs day-to-day. Supervisor and manager layers trigger "
-            "automatically as headcount scales. William Renfrow holds capital and credit — "
-            "no operating role required."
+        st.markdown(
+            '<div class="info-box"><strong>Does it run without you?</strong> The GM runs day-to-day. Supervisor and manager layers trigger '
+            'automatically as headcount scales. William Renfrow holds capital and credit — '
+            'no operating role required.</div>',
+            unsafe_allow_html=True,
         )
     # L1 view is complete — stop here so tab code below does not execute
     st.stop()
@@ -1346,17 +1441,19 @@ with tab_brief:
     _be_month = _profitable_rows.iloc[0]["period"] if len(_profitable_rows) else "Not in range"
 
     if _ss_ebitda > 0 and _peak_rng > 0:
-        st.success(
-            f"**Selected range ({_period_label}): max credit needed is {fmt_dollar(_peak_rng)}** ({_mo_peak_period}), "
-            f"turns profitable **{_be_month}**, "
-            f"and makes **{fmt_dollar(_ss_ebitda)}/month** when running — after borrowing costs "
-            f"-- **{_ropc:.1f}x return** on money deployed."
+        st.markdown(
+            f'<div class="verdict-pass"><strong>Selected range ({_period_label}): max credit needed is {fmt_dollar(_peak_rng)}</strong> ({_mo_peak_period}), '
+            f'turns profitable <strong>{_be_month}</strong>, '
+            f'and makes <strong>{fmt_dollar(_ss_ebitda)}/month</strong> when running — after borrowing costs '
+            f'— <strong>{_ropc:.1f}x return</strong> on money deployed.</div>',
+            unsafe_allow_html=True,
         )
     elif _ss_ebitda <= 0:
-        st.error(
-            f"**Not profitable with these numbers.** "
-            f"Net profit at end of range: {fmt_dollar(_ss_ebitda)}/month. "
-            "Extend the range, increase bill rate, or reduce payroll overhead."
+        st.markdown(
+            f'<div class="verdict-fail"><strong>Not profitable with these numbers.</strong> '
+            f'Net profit at end of range: {fmt_dollar(_ss_ebitda)}/month. '
+            'Extend the range, increase bill rate, or reduce payroll overhead.</div>',
+            unsafe_allow_html=True,
         )
 
     # KPI row
@@ -1972,7 +2069,7 @@ with tab_detail:
         fig_t.add_trace(go.Scatter(x=mo_s["period"], y=mo_s["ebitda_after_interest"],
                                    name="Net Profit", mode="lines+markers",
                                    line=dict(color=PC[1], width=2)))
-        fig_t.add_hline(y=0, line_dash="dot", line_color="#444", line_width=1)
+        fig_t.add_hline(y=0, line_color="#CBD5E1", line_width=1)
         fig_t.update_layout(template=TPL, height=300, margin=dict(l=10,r=10,t=10,b=60),
                             legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom"), yaxis=dict(tickformat="$,.0f"))
         st.plotly_chart(fig_t, use_container_width=True, config=_CHART_CONFIG)
@@ -2000,25 +2097,28 @@ with tab_detail:
         with iq1:
             st.markdown("**Does it work and is it competitive?**")
             if _ss_ni2 > 0:
-                st.success(
-                    f"Yes -- when running at full speed the division generates **{fmt_dollar(_ss_ni2)}/month** "
-                    f"after borrowing costs ({fmt_dollar(_ss_ni2 * 12)}/year). "
-                    f"It turns profitable in **{_be_mo2}**. "
-                    f"Year 1 net profit: **{fmt_dollar(_yr1_ni2)}**."
+                st.markdown(
+                    f'<div class="verdict-pass">Yes — when running at full speed the division generates <strong>{fmt_dollar(_ss_ni2)}/month</strong> '
+                    f'after borrowing costs ({fmt_dollar(_ss_ni2 * 12)}/year). '
+                    f'It turns profitable in <strong>{_be_mo2}</strong>. '
+                    f'Year 1 net profit: <strong>{fmt_dollar(_yr1_ni2)}</strong>.</div>',
+                    unsafe_allow_html=True,
                 )
             else:
-                st.error(
-                    f"Not yet -- net profit at full speed is **{fmt_dollar(_ss_ni2)}/month**. "
-                    "Adjust bill rate, payroll overhead, or headcount to reach profitability."
+                st.markdown(
+                    f'<div class="verdict-fail">Not yet — net profit at full speed is <strong>{fmt_dollar(_ss_ni2)}/month</strong>. '
+                    'Adjust bill rate, payroll overhead, or headcount to reach profitability.</div>',
+                    unsafe_allow_html=True,
                 )
 
             st.markdown("**How big can this become inside OpSource?**")
-            st.info(
-                f"At **{_max_insp} peak inspectors**, this scenario generates "
-                f"**{fmt_dollar(mo_full['revenue'].max())}/month** in peak revenue. "
-                f"Scaling to 150-200 inspectors is achievable within 24-36 months with "
-                f"the right supervisor layering and credit line. Each additional inspector "
-                f"at current rates adds **{fmt_dollar(float(a.get('st_bill_rate', 39)) * (float(a.get('st_hours', 40)) + float(a.get('ot_hours', 10)) * float(a.get('ot_bill_premium', 1.5))) * 52 / 12)}/month** in annualized revenue."
+            st.markdown(
+                f'<div class="info-box">At <strong>{_max_insp} peak inspectors</strong>, this scenario generates '
+                f'<strong>{fmt_dollar(mo_full["revenue"].max())}/month</strong> in peak revenue. '
+                f'Scaling to 150-200 inspectors is achievable within 24-36 months with '
+                f'the right supervisor layering and credit line. Each additional inspector '
+                f'at current rates adds <strong>{fmt_dollar(float(a.get("st_bill_rate", 39)) * (float(a.get("st_hours", 40)) + float(a.get("ot_hours", 10)) * float(a.get("ot_bill_premium", 1.5))) * 52 / 12)}/month</strong> in annualized revenue.</div>',
+                unsafe_allow_html=True,
             )
 
         with iq2:
@@ -2026,27 +2126,30 @@ with tab_detail:
             _max_loc3 = float(a.get("max_loc", 1_000_000))
             _apr3 = float(a.get("apr", 0.085))
             if _peak2 <= _max_loc3:
-                st.success(
-                    f"Peak credit draw: **{fmt_dollar(_peak2)}** in **{_peak_mo2}** -- within your "
-                    f"**{fmt_dollar(_max_loc3)}** credit line. "
-                    f"Total interest cost: **{fmt_dollar(_tot_int2)}** at {_apr3:.1%} APR. "
-                    f"Profit vs. borrowing cost at full speed: **{_int_cov2:.1f}x**. "
-                    f"Return on money deployed: **{_ropc2:.1f}x** annualized."
+                st.markdown(
+                    f'<div class="verdict-pass">Peak credit draw: <strong>{fmt_dollar(_peak2)}</strong> in <strong>{_peak_mo2}</strong> — within your '
+                    f'<strong>{fmt_dollar(_max_loc3)}</strong> credit line. '
+                    f'Total interest cost: <strong>{fmt_dollar(_tot_int2)}</strong> at {_apr3:.1%} APR. '
+                    f'Profit vs. borrowing cost at full speed: <strong>{_int_cov2:.1f}x</strong>. '
+                    f'Return on money deployed: <strong>{_ropc2:.1f}x</strong> annualized.</div>',
+                    unsafe_allow_html=True,
                 )
             else:
-                st.error(
-                    f"Peak draw **{fmt_dollar(_peak2)}** exceeds your **{fmt_dollar(_max_loc3)}** credit line. "
-                    f"Increase the credit line or reduce terms/headcount ramp."
+                st.markdown(
+                    f'<div class="verdict-fail">Peak draw <strong>{fmt_dollar(_peak2)}</strong> exceeds your <strong>{fmt_dollar(_max_loc3)}</strong> credit line. '
+                    'Increase the credit line or reduce terms/headcount ramp.</div>',
+                    unsafe_allow_html=True,
                 )
 
             st.markdown("**Does it run without you?**")
-            st.info(
-                f"Yes -- the model includes a fully-loaded GM at "
-                f"**{fmt_dollar(float(a.get('gm_loaded_annual', 117_000)) / 12)}/month** "
-                f"responsible for day-to-day operations, plus automatic supervisor layering "
-                f"(1 Field Sup per {int(a.get('fieldsup_span', 25))} inspectors, "
-                f"1 Ops Coord per {int(a.get('opscoord_span', 75))}). "
-                "Owner role is capital allocation and performance review only."
+            st.markdown(
+                f'<div class="info-box">Yes — the model includes a fully-loaded GM at '
+                f'<strong>{fmt_dollar(float(a.get("gm_loaded_annual", 117_000)) / 12)}/month</strong> '
+                f'responsible for day-to-day operations, plus automatic supervisor layering '
+                f'(1 Field Sup per {int(a.get("fieldsup_span", 25))} inspectors, '
+                f'1 Ops Coord per {int(a.get("opscoord_span", 75))}). '
+                'Owner role is capital allocation and performance review only.</div>',
+                unsafe_allow_html=True,
             )
 
     # ── Sensitivity sub-tab ───────────────────────────────────────────────
