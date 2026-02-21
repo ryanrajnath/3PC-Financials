@@ -201,7 +201,7 @@ if "run_hash"       not in st.session_state: st.session_state.run_hash       = N
 if "run_ts"         not in st.session_state: st.session_state.run_ts         = None
 if "bootstrapped"   not in st.session_state: st.session_state.bootstrapped   = False
 if "preset_version" not in st.session_state: st.session_state.preset_version  = 0
-if "view_mode"      not in st.session_state: st.session_state.view_mode       = "Level 1 — Investor"
+if "view_mode"      not in st.session_state: st.session_state.view_mode       = "Simple View"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -345,7 +345,7 @@ def _render_loc_chart(mo, wdf, a):
     fig_loc = go.Figure()
     fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["loc_end"], name="Credit Line Balance",
         fill="tozeroy", fillcolor="rgba(239,68,68,0.08)", line=dict(color=PC[3], width=2)))
-    fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["ar_end"], name="Accounts Receivable",
+    fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["ar_end"], name="Unpaid Invoices",
         line=dict(color=PC[0], width=2)))
     fig_loc.add_trace(go.Scatter(x=mo["period"], y=mo["cash_end"], name="Cash on Hand",
         line=dict(color=PC[1], width=2)))
@@ -408,7 +408,7 @@ def _render_ebitda_chart(mo_in):
     # Single visible line on top
     fig.add_trace(go.Scatter(
         x=mo_cf["period"], y=mo_cf["cumulative_ni"],
-        name="Cumulative Net Income", mode="lines",
+        name="Total Profit Over Time", mode="lines",
         line=dict(color=PC[0], width=2.5),
     ))
 
@@ -461,7 +461,7 @@ def _render_ebitda_chart(mo_in):
         template=TPL, height=340, margin=dict(l=10, r=10, t=10, b=10),
         showlegend=False,
         xaxis=dict(rangeslider=dict(visible=True, thickness=0.05)),
-        yaxis=dict(tickformat="$,.0f", title="Cumulative Net Income ($)"),
+        yaxis=dict(tickformat="$,.0f", title="Total Profit Over Time ($)"),
     )
     st.plotly_chart(fig, use_container_width=True, config=_CHART_CONFIG)
 
@@ -469,9 +469,9 @@ def _render_ebitda_chart(mo_in):
     _ss_monthly = float(mo_cf["ebitda_after_interest"].tail(12).mean())
     if _end_val > 0 and _ss_monthly > 0:
         st.caption(
-            f"Cumulative return on the selected range: **{fmt_dollar(_end_val)}**. "
-            f"Steady-state run rate: **{fmt_dollar(_ss_monthly)}/month** "
-            f"(**{fmt_dollar(_ss_monthly * 12)}/year**) after interest."
+            f"Total profit over the selected range: **{fmt_dollar(_end_val)}**. "
+            f"Monthly profit when running: **{fmt_dollar(_ss_monthly)}/month** "
+            f"(**{fmt_dollar(_ss_monthly * 12)}/year**) after borrowing costs."
         )
     elif _trough_val < 0:
         st.caption(
@@ -648,11 +648,11 @@ _vm_col, ctrl1, ctrl2, ctrl3 = st.columns([2, 3, 1, 2])
 with _vm_col:
     _vm = st.radio(
         "View",
-        ["Level 1 — Investor", "Level 2 — Operator"],
-        index=0 if st.session_state.view_mode == "Level 1 — Investor" else 1,
+        ["Simple View", "Full Detail"],
+        index=0 if st.session_state.view_mode == "Simple View" else 1,
         horizontal=True,
         label_visibility="collapsed",
-        help="Level 1: investor summary only. Level 2: full model detail.",
+        help="Simple View: key numbers only. Full Detail: full model detail.",
     )
     st.session_state.view_mode = _vm
 with ctrl1:
@@ -718,7 +718,7 @@ if results_ready():
     st.caption(f"📅 Showing **{_rng_label}** across all tabs")
 
     # Determine view mode
-    _L1 = (st.session_state.view_mode == "Level 1 — Investor")
+    _L1 = (st.session_state.view_mode == "Simple View")
 
     # Top-level KPI bar — scoped to selected range (hidden in L1 mode)
     if not _L1:
@@ -728,21 +728,21 @@ if results_ready():
         _n_mo_top = len(mo_top)
         _lbl_top  = f"{_n_mo_top}-Mo" if _n_mo_top <= 24 else (f"{_n_mo_top//12}-Yr" if _n_mo_top % 12 == 0 else f"{_n_mo_top//12}Y{_n_mo_top%12}M")
         kpi(k1, "Peak Credit Line",          fmt_dollar(mo_top["loc_end"].max()),                     peak_mo)
-        kpi(k2, f"{_lbl_top} Revenue",       fmt_dollar(mo_top["revenue"].sum()),                     "billed (accrual)")
-        kpi(k3, f"{_lbl_top} Net Income",    fmt_dollar(mo_top["ebitda_after_interest"].sum()),        "after interest")
+        kpi(k2, f"{_lbl_top} Revenue",       fmt_dollar(mo_top["revenue"].sum()),                     "revenue earned")
+        kpi(k3, f"{_lbl_top} Net Profit",    fmt_dollar(mo_top["ebitda_after_interest"].sum()),        "after borrowing costs")
         kpi(k4, "Total Borrowing Cost",      fmt_dollar(mo_top["interest"].sum()),                    "credit line interest")
         yr1 = mo_top[mo_top["month_idx"].between(_rlo - 1, _rlo + 10)]
-        kpi(k5, "Year 1 Net Income",         fmt_dollar(yr1["ebitda_after_interest"].sum()),           "first 12 months of range")
+        kpi(k5, "Year 1 Net Profit",         fmt_dollar(yr1["ebitda_after_interest"].sum()),           "first 12 months of range")
     st.divider()
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # VIEW MODE GATE
 # ════════════════════════════════════════════════════════════════════════════
-_L1 = (st.session_state.view_mode == "Level 1 — Investor")
+_L1 = (st.session_state.view_mode == "Simple View")
 
 if _L1:
-    # ── Level 1 — Investor View ────────────────────────────────────────────
+    # ── Simple View ────────────────────────────────────────────
     if not results_ready():
         st.markdown('<div class="info-box">Select a scenario above and click <b>Run</b> to generate results.</div>', unsafe_allow_html=True)
         st.stop()
@@ -772,29 +772,29 @@ if _L1:
     # Verdict banner
     if _ss_ebitda > 0 and _peak_rng > 0:
         st.success(
-            f"**This scenario requires {fmt_dollar(_peak_rng)} in credit** (peaks at {_mo_peak_period}), "
-            f"reaches profitability at **{_be_month}**, and generates "
-            f"**{fmt_dollar(_ss_ebitda)}/month** at steady state — "
-            f"a **{_ropc:.1f}x annualized return** on peak capital."
+            f"**You need {fmt_dollar(_peak_rng)} in credit** (peaks at {_mo_peak_period}). "
+            f"The division turns profitable at **{_be_month}** and makes "
+            f"**{fmt_dollar(_ss_ebitda)}/month** when running — "
+            f"a **{_ropc:.1f}x return** on money deployed."
         )
     else:
-        st.error("No profitability in selected range. Adjust bill rate, headcount, or burden % and re-run.")
+        st.error("Not profitable with these numbers. Try raising the bill rate, adding inspectors, or extending the time range.")
 
     # 4 KPI cards
     _l1k1, _l1k2, _l1k3, _l1k4 = st.columns(4)
-    kpi(_l1k1, "Peak Credit Required",  fmt_dollar(_peak_rng),   f"due by {_mo_peak_period}")
-    kpi(_l1k2, "First Profitable Month", _be_month,              "net income after interest")
-    kpi(_l1k3, "Steady-State / Month",  fmt_dollar(_ss_ebitda),  "avg last 12 months of range")
-    kpi(_l1k4, "Return on Peak Capital", f"{_ropc:.1f}x",        "annualized EBITDA / peak credit")
+    kpi(_l1k1, "Max Credit Needed",      fmt_dollar(_peak_rng),   f"due by {_mo_peak_period}")
+    kpi(_l1k2, "Turns Profitable",       _be_month,              "after borrowing costs")
+    kpi(_l1k3, "Monthly Profit at Full Speed", fmt_dollar(_ss_ebitda), "avg last 12 months")
+    kpi(_l1k4, "Return on Your Money",   f"{_ropc:.1f}x",        "yearly profit ÷ max credit used")
     st.divider()
 
     # ── 2 charts side by side ─────────────────────────────────────────────
     _c1, _c2 = st.columns(2)
     with _c1:
-        section("Credit Line, Cash & Accounts Receivable")
+        section("Credit Line, Cash & Unpaid Invoices")
         _render_loc_chart(mo, weekly_df, a)
     with _c2:
-        section("EBITDA & Implied Company Valuation")
+        section("Profit Over Time")
         _render_ebitda_chart(mo)
 
     st.divider()
@@ -802,37 +802,36 @@ if _L1:
     # ── Risk callouts ─────────────────────────────────────────────────────
     _has_risks = n_loc or _peak_rng > _max_loc or _burden > 0.35 or (_min_fccr > 0 and _min_fccr < 1.1)
     if _has_risks:
-        section("Risk Flags")
+        section("Things to Watch")
         if _peak_rng > _max_loc:
             st.error(
-                f"**Peak draw of {fmt_dollar(_peak_rng)} exceeds your {fmt_dollar(_max_loc)} credit facility.** "
-                "The business is underfunded at these assumptions — increase the credit line or reduce ramp speed."
+                f"**Your credit need ({fmt_dollar(_peak_rng)}) is bigger than your credit line ({fmt_dollar(_max_loc)}).** "
+                "You're underfunded — increase the credit line or slow down hiring."
             )
         elif n_loc:
             st.warning(
-                f"**Credit line hit its maximum in {n_loc} week(s).** "
-                "Consider a larger facility or slower headcount ramp."
+                f"**The credit line maxed out in {n_loc} week(s).** Consider a bigger line or slower hiring ramp."
             )
         if _burden > 0.35:
             st.warning(
-                f"**Burden rate {_burden:.0%} is above 35%.** "
-                "Verify workers comp and benefits assumptions — this compresses gross margin significantly."
+                f"**Payroll overhead at {_burden:.0%} is high.** "
+                "Above 35% squeezes profit fast — double-check your workers comp and benefits numbers."
             )
         if _min_fccr > 0 and _min_fccr < 1.1:
             st.warning(
-                f"**Minimum FCCR {_min_fccr:.2f}x is below lender threshold of 1.1x.** "
-                "Tighten terms or increase headcount/rates before approaching lenders."
+                f"**Loan coverage ratio {_min_fccr:.2f}x is below what banks want (1.1x).** "
+                "Tighten payment terms or grow headcount before approaching lenders."
             )
 
     # ── The Four Questions ────────────────────────────────────────────────
     st.divider()
-    section("The Four Questions")
+    section("The Bottom Line")
     qa1, qa2 = st.columns(2)
     with qa1:
         if _ss_ebitda > 0:
             st.success(
-                f"**Does it work?** Yes — at steady state this division generates "
-                f"{fmt_dollar(_ss_ebitda)}/month ({fmt_dollar(_ss_annual)}/year) net of all costs and interest."
+                f"**Does it work?** Yes — when running at full speed this division generates "
+                f"{fmt_dollar(_ss_ebitda)}/month ({fmt_dollar(_ss_annual)}/year) after all costs and borrowing."
             )
         else:
             st.error(
@@ -845,17 +844,17 @@ if _L1:
         if _max_ev > 0:
             st.info(
                 f"**How big can this become?** At {_max_insp} inspectors, "
-                f"TTM EBITDA reaches {fmt_dollar(_max_ttm)} with an implied exit value of "
-                f"{fmt_dollar(_max_ev)} ({_ev_multiple(_max_ttm):.1f}x EBITDA)."
+                f"annual profit reaches {fmt_dollar(_max_ttm)} with an implied exit value of "
+                f"{fmt_dollar(_max_ev)} ({_ev_multiple(_max_ttm):.1f}x annual profit)."
             )
     with qa2:
         _nd_val = int(a.get("net_days", 60))
         st.info(
-            f"**What capital is required?** A {fmt_dollar(_max_loc)} credit facility sized for "
-            f"Net {_nd_val} payment terms. Peak draw: {fmt_dollar(_peak_rng)} at {_mo_peak_period}."
+            f"**What money do you need?** A {fmt_dollar(_max_loc)} credit line sized for "
+            f"{_nd_val}-day payment terms. Peak draw: {fmt_dollar(_peak_rng)} at {_mo_peak_period}."
         )
         st.info(
-            "**Can the team execute?** The GM runs day-to-day. Supervisor and manager layers trigger "
+            "**Does it run without you?** The GM runs day-to-day. Supervisor and manager layers trigger "
             "automatically as headcount scales. William Renfrow holds capital and credit — "
             "no operating role required."
         )
@@ -866,7 +865,7 @@ if _L1:
 # TABS  (Level 2 — Operator View only)
 # ════════════════════════════════════════════════════════════════════════════
 tab_brief, tab_inputs, tab_detail = st.tabs([
-    "◎  Investor Brief", "⚙  Inputs", "≋  Detail"
+    "◎  Overview", "⚙  Assumptions", "≋  Detail"
 ])
 
 
@@ -891,7 +890,7 @@ with tab_inputs:
             key=f"kl_bill_rate_{pv}"
         )
         _burden_pct = st.slider(
-            "Burden (%)", min_value=15, max_value=55,
+            "Payroll Overhead (%)", min_value=15, max_value=55,
             value=int(round(a["burden"] * 100)), step=1, format="%d%%",
             help="Employer cost on top of wages: FICA, unemployment, workers' comp, benefits. ~30% typical.",
             key=f"kl_burden_{pv}"
@@ -1101,7 +1100,7 @@ with tab_inputs:
             step=10, format="%d", key=f"adv_rm_sp_{pv}"
         )
         _mgmt_burden_pct = st.slider(
-            "Management Burden Rate (%)", min_value=10, max_value=40,
+            "Management Overhead (%)", min_value=10, max_value=40,
             value=int(round(a["mgmt_burden"] * 100)), step=1, format="%d%%",
             key=f"adv_mgmt_burden_{pv}"
         )
@@ -1166,20 +1165,20 @@ with tab_inputs:
             key=f"adv_auto_paydown_{pv}"
         )
         a["use_borrowing_base"] = st.checkbox(
-            "Enable AR-based borrowing base (ABL facility)",
+            "Enable Invoice-Based Credit Limit",
             value=bool(a.get("use_borrowing_base", False)),
-            help="Limits credit draws to advance_rate x eligible AR balance.",
+            help="Limits credit draws to advance_rate x eligible invoices balance.",
             key=f"adv_use_bb_{pv}"
         )
         if a["use_borrowing_base"]:
             _adv_pct = st.slider(
-                "Advance Rate on AR (%)", min_value=70, max_value=92,
+                "Invoice Advance Rate (%)", min_value=70, max_value=92,
                 value=int(round(float(a.get("ar_advance_rate", 0.85)) * 100)), step=1, format="%d%%",
-                help="Lender advances this % of eligible AR (<90 days). Standard: 80-85% for staffing ABL.",
+                help="Lender advances this % of eligible invoices (<90 days). Standard: 80-85% for staffing invoice-based credit.",
                 key=f"adv_ar_advance_{pv}"
             )
             a["ar_advance_rate"] = _adv_pct / 100.0
-            st.caption(f"Borrowing base = **{a['ar_advance_rate']:.0%} x AR balance** (capped at credit limit)")
+            st.caption(f"Invoice credit limit = **{a['ar_advance_rate']:.0%} x unpaid invoices** (capped at credit limit)")
         _mo_int = (a["apr"] / 12) * a["max_loc"]
         st.caption(f"Interest at full draw: **${_mo_int:,.0f}/month**")
 
@@ -1348,32 +1347,32 @@ with tab_brief:
 
     if _ss_ebitda > 0 and _peak_rng > 0:
         st.success(
-            f"**Selected range ({_period_label}): peak credit required is {fmt_dollar(_peak_rng)}** ({_mo_peak_period}), "
-            f"first profitable month **{_be_month}**, "
-            f"and steady-state net income **{fmt_dollar(_ss_ebitda)}/month** after interest "
-            f"-- **{_ropc:.1f}x annualized return** on peak capital deployed."
+            f"**Selected range ({_period_label}): max credit needed is {fmt_dollar(_peak_rng)}** ({_mo_peak_period}), "
+            f"turns profitable **{_be_month}**, "
+            f"and makes **{fmt_dollar(_ss_ebitda)}/month** when running — after borrowing costs "
+            f"-- **{_ropc:.1f}x return** on money deployed."
         )
     elif _ss_ebitda <= 0:
         st.error(
-            f"**No profitability in selected range.** "
-            f"Net income at end of range: {fmt_dollar(_ss_ebitda)}/month. "
-            "Extend the range, increase bill rate, or reduce burden."
+            f"**Not profitable with these numbers.** "
+            f"Net profit at end of range: {fmt_dollar(_ss_ebitda)}/month. "
+            "Extend the range, increase bill rate, or reduce payroll overhead."
         )
 
     # KPI row
     v1, v2, v3, v4, v5, v6 = st.columns(6)
-    kpi(v1, "Peak Credit Needed",      fmt_dollar(_peak_rng),                            _mo_peak_period)
-    kpi(v2, "First Profitable Month",  _be_month,                                        "net after interest")
-    kpi(v3, "Steady-State / Month",    fmt_dollar(_ss_ebitda),                           "net income (last 12 mo of range)")
-    kpi(v4, f"{_period_label} Net Income", fmt_dollar(mo["ebitda_after_interest"].sum()), "after interest -- selected range")
-    kpi(v5, "Total Interest Cost",     fmt_dollar(_total_interest),                      "credit line cost -- selected range")
-    kpi(v6, "Return on Peak Capital",  f"{_ropc:.1f}x",                                  "ann. EBITDA / peak LOC")
+    kpi(v1, "Max Credit Needed",        fmt_dollar(_peak_rng),                            _mo_peak_period)
+    kpi(v2, "Turns Profitable",         _be_month,                                        "after borrowing costs")
+    kpi(v3, "Monthly Profit at Full Speed", fmt_dollar(_ss_ebitda),                       "avg last 12 months")
+    kpi(v4, f"{_period_label} Net Profit", fmt_dollar(mo["ebitda_after_interest"].sum()), "after borrowing costs -- selected range")
+    kpi(v5, "Total Interest Cost",      fmt_dollar(_total_interest),                      "credit line cost -- selected range")
+    kpi(v6, "Return on Your Money",     f"{_ropc:.1f}x",                                  "yearly profit ÷ max credit used")
 
     if _self_fund:
-        st.caption(f"Credit line fully repaid (division self-funding): **{_self_fund}**  --  EBITDA/Interest coverage: **{_int_coverage:.1f}x**")
+        st.caption(f"Credit line fully paid off (division runs itself): **{_self_fund}**  --  Profit vs. Borrowing Cost: **{_int_coverage:.1f}x**")
 
     # Working capital row
-    section("Working Capital & Credit Metrics")
+    section("Cash Health")
     wc1, wc2, wc3, wc4, wc5 = st.columns(5)
 
     _avg_dso = float(mo["dso"].mean()) if "dso" in mo.columns else 0
@@ -1388,12 +1387,12 @@ with tab_brief:
     _use_bb = bool(a.get("use_borrowing_base", False))
     _loc_headroom_avg = float(mo_full["loc_headroom"].mean()) if "loc_headroom" in mo_full.columns else None
 
-    kpi(wc1, "Avg DSO",           f"{_avg_dso:.0f} days",        f"max {_max_dso:.0f} days in range")
-    kpi(wc2, "Peak LOC Util.",    f"{_peak_loc_util:.0%}",        "of credit facility used")
-    kpi(wc3, "Days Cash on Hand", f"{_days_cash:.0f} days",       "avg cash / daily burn")
-    kpi(wc4, "Avg FCCR",          f"{_avg_fccr:.1f}x",           f"min {_min_fccr:.1f}x (1.1x = lender threshold)")
+    kpi(wc1, "Avg Days to Get Paid", f"{_avg_dso:.0f} days",     f"max {_max_dso:.0f} days in range")
+    kpi(wc2, "Max Credit Used",       f"{_peak_loc_util:.0%}",    "of credit line used")
+    kpi(wc3, "Days Cash on Hand",     f"{_days_cash:.0f} days",   "avg cash / daily burn")
+    kpi(wc4, "Loan Coverage",         f"{_avg_fccr:.1f}x",       f"min {_min_fccr:.1f}x (1.1x = bank minimum)")
     if _use_bb and _loc_headroom_avg is not None:
-        kpi(wc5, "Avg BB Headroom", fmt_dollar(_loc_headroom_avg), "available credit above LOC balance")
+        kpi(wc5, "Available Credit", fmt_dollar(_loc_headroom_avg), "available credit above credit line balance")
     else:
         _bad_debt_annual = float(mo["revenue"].sum()) * float(a.get("bad_debt_pct", 0.01)) / max(1, len(mo)) * 12
         kpi(wc5, "Annual Bad Debt Est.", fmt_dollar(_bad_debt_annual), f"{a.get('bad_debt_pct', 0.01):.1%} of revenue")
@@ -1404,12 +1403,12 @@ with tab_brief:
     _brief_c1, _brief_c2 = st.columns(2)
 
     with _brief_c1:
-        section("Credit Line, Cash & AR")
+        section("Credit Line, Cash & Unpaid Invoices")
         _render_loc_chart(mo, weekly_df, a)
 
-    # ── 3. EBITDA trajectory + implied company valuation ──────────────────
+    # ── 3. Profit trajectory + implied company valuation ──────────────────
     with _brief_c2:
-        section("EBITDA & Implied Company Valuation")
+        section("Profit Over Time")
         _render_ebitda_chart(mo)
 
 
@@ -1434,13 +1433,13 @@ with tab_brief:
             )
         if _burden > 0.35:
             st.warning(
-                f"**Burden rate {_burden:.0%} is above 35%.** This compresses margins significantly. "
+                f"**Payroll overhead at {_burden:.0%} is above 35%.** This compresses margins significantly. "
                 "Verify workers comp classification and benefit assumptions."
             )
         if _nd > 90:
             st.warning(
-                f"**Net {_nd} payment terms.** At this lag, LOC peaks at {fmt_dollar(_peak)}. "
-                "Confirm your credit facility can support this draw before launch."
+                f"**{_nd}-day payment terms.** At this lag, the credit line peaks at {fmt_dollar(_peak)}. "
+                "Confirm your credit line can support this draw before launch."
             )
         if _margin_yr1 < 0.10 and _margin_yr1 > 0:
             st.warning(
@@ -1448,7 +1447,7 @@ with tab_brief:
                 "for pricing pressure, cost surprises, or payment delays."
             )
         if _min_fccr > 0 and _min_fccr < 1.1:
-            st.warning(f"**FCCR drops to {_min_fccr:.2f}x** -- below the typical lender covenant of 1.10x.")
+            st.warning(f"**Loan coverage drops to {_min_fccr:.2f}x** -- below the bank minimum of 1.10x.")
         elif _peak_loc_util > 0.85:
             st.warning(f"**Credit line peaks at {_peak_loc_util:.0%} utilization** -- limited headroom.")
 
@@ -1502,17 +1501,17 @@ with tab_detail:
                      "collections","ar_end","loc_end","cash_end"]
             _col_rename = {
                 "period":"Period","inspectors_avg":"Inspectors","team_leads_avg":"Team Leads",
-                "revenue":"Revenue","hourly_labor":"Hourly Labor","salaried_cost":"Salaried Mgmt",
-                "overhead":"Overhead","total_labor":"Total Labor","ebitda":"Oper. Profit",
-                "ebitda_margin":"Oper. %","interest":"Interest","ebitda_after_interest":"Net Income",
-                "ebitda_ai_margin":"Net %","collections":"Collections","ar_end":"AR Balance",
+                "revenue":"Revenue","hourly_labor":"Inspector & Lead Pay","salaried_cost":"Management Pay",
+                "overhead":"Overhead","total_labor":"Total Labor","ebitda":"Operating Profit",
+                "ebitda_margin":"Oper. %","interest":"Interest","ebitda_after_interest":"Net Profit",
+                "ebitda_ai_margin":"Net %","collections":"Collections","ar_end":"Invoices Outstanding",
                 "loc_end":"Credit Line","cash_end":"Cash",
             }
             _fmt_table(_select(mo, dcols).rename(columns=_col_rename),
-                dollar_cols=["Revenue","Hourly Labor","Salaried Mgmt","Overhead","Total Labor",
-                             "Oper. Profit","Interest","Net Income","Collections","AR Balance","Credit Line","Cash"],
+                dollar_cols=["Revenue","Inspector & Lead Pay","Management Pay","Overhead","Total Labor",
+                             "Operating Profit","Interest","Net Profit","Collections","Invoices Outstanding","Credit Line","Cash"],
                 pct_cols=["Oper. %","Net %"],
-                highlight_neg="Net Income",
+                highlight_neg="Net Profit",
                 highlight_loc="Credit Line", max_loc_val=float(a["max_loc"]))
 
         with f2:
@@ -1520,17 +1519,17 @@ with tab_detail:
                      "ebitda","ebitda_margin","interest","ebitda_after_interest","ebitda_ai_margin",
                      "ar_end","loc_end","cash_end"]
             _qcol_rename = {
-                "yr_q":"Quarter","revenue":"Revenue","hourly_labor":"Hourly Labor",
-                "salaried_cost":"Salaried Mgmt","overhead":"Overhead","total_labor":"Total Labor",
-                "ebitda":"Oper. Profit","ebitda_margin":"Oper. %","interest":"Interest",
-                "ebitda_after_interest":"Net Income","ebitda_ai_margin":"Net %",
-                "ar_end":"AR Balance","loc_end":"Credit Line","cash_end":"Cash",
+                "yr_q":"Quarter","revenue":"Revenue","hourly_labor":"Inspector & Lead Pay",
+                "salaried_cost":"Management Pay","overhead":"Overhead","total_labor":"Total Labor",
+                "ebitda":"Operating Profit","ebitda_margin":"Oper. %","interest":"Interest",
+                "ebitda_after_interest":"Net Profit","ebitda_ai_margin":"Net %",
+                "ar_end":"Invoices Outstanding","loc_end":"Credit Line","cash_end":"Cash",
             }
             _fmt_table(_select(qdf, qcols).rename(columns=_qcol_rename),
-                dollar_cols=["Revenue","Hourly Labor","Salaried Mgmt","Overhead","Total Labor",
-                             "Oper. Profit","Interest","Net Income","AR Balance","Credit Line","Cash"],
+                dollar_cols=["Revenue","Inspector & Lead Pay","Management Pay","Overhead","Total Labor",
+                             "Operating Profit","Interest","Net Profit","Invoices Outstanding","Credit Line","Cash"],
                 pct_cols=["Oper. %","Net %"],
-                highlight_neg="Net Income",
+                highlight_neg="Net Profit",
                 highlight_loc="Credit Line", max_loc_val=float(a["max_loc"]))
 
         with f3:
@@ -1554,34 +1553,34 @@ with tab_detail:
                     "insp_labor_st","insp_labor_ot","lead_labor_st","lead_labor_ot",
                     "hourly_labor","salaried_wk","overhead_wk","revenue_wk","ebitda_wk"]).rename(columns={
                     "week_start":"Week Start","inspectors":"Inspectors","team_leads":"Team Leads",
-                    "insp_labor_st":"Insp Labor ST","insp_labor_ot":"Insp Labor OT",
-                    "lead_labor_st":"Lead Labor ST","lead_labor_ot":"Lead Labor OT",
-                    "hourly_labor":"Hourly Labor","salaried_wk":"Salaried Mgmt",
-                    "overhead_wk":"Overhead","revenue_wk":"Revenue","ebitda_wk":"Oper. Profit",
+                    "insp_labor_st":"Insp Regular Pay","insp_labor_ot":"Insp Overtime Pay",
+                    "lead_labor_st":"Lead Regular Pay","lead_labor_ot":"Lead Overtime Pay",
+                    "hourly_labor":"Inspector & Lead Pay","salaried_wk":"Management Pay",
+                    "overhead_wk":"Overhead","revenue_wk":"Revenue","ebitda_wk":"Operating Profit",
                 }),
-                    dollar_cols=["Insp Labor ST","Insp Labor OT","Lead Labor ST","Lead Labor OT",
-                                 "Hourly Labor","Salaried Mgmt","Overhead","Revenue","Oper. Profit"])
+                    dollar_cols=["Insp Regular Pay","Insp Overtime Pay","Lead Regular Pay","Lead Overtime Pay",
+                                 "Inspector & Lead Pay","Management Pay","Overhead","Revenue","Operating Profit"])
             with wt3:
                 _fmt_table(_select(wdf, ["week_start","week_end","is_month_end",
                     "revenue_wk","statement_amt","collections","ar_begin","ar_end"]).rename(columns={
                     "week_start":"Week Start","week_end":"Week End","is_month_end":"Month End?",
                     "revenue_wk":"Revenue","statement_amt":"Invoice Amt",
-                    "collections":"Collections","ar_begin":"AR Open","ar_end":"AR Close",
+                    "collections":"Collections","ar_begin":"Invoices Open","ar_end":"Invoices Close",
                 }),
-                    dollar_cols=["Revenue","Invoice Amt","Collections","AR Open","AR Close"])
+                    dollar_cols=["Revenue","Invoice Amt","Collections","Invoices Open","Invoices Close"])
             with wt4:
                 _fmt_table(_select(wdf, ["week_start","payroll_cash_out","salaried_wk",
                     "overhead_wk","interest_paid","collections",
                     "cash_begin","loc_draw","loc_repay","cash_end","loc_begin","loc_end"]).rename(columns={
                     "week_start":"Week Start","payroll_cash_out":"Hourly Payroll",
-                    "salaried_wk":"Salaried Mgmt","overhead_wk":"Overhead",
+                    "salaried_wk":"Management Pay","overhead_wk":"Overhead",
                     "interest_paid":"Interest Paid","collections":"Collections",
-                    "cash_begin":"Cash Open","loc_draw":"LOC Draw","loc_repay":"LOC Repay",
-                    "cash_end":"Cash Close","loc_begin":"LOC Open","loc_end":"LOC Close",
+                    "cash_begin":"Cash Open","loc_draw":"Credit Drawn","loc_repay":"Credit Repaid",
+                    "cash_end":"Cash Close","loc_begin":"Credit Open","loc_end":"Credit Close",
                 }),
-                    dollar_cols=["Hourly Payroll","Salaried Mgmt","Overhead","Interest Paid",
-                                 "Collections","Cash Open","LOC Draw","LOC Repay",
-                                 "Cash Close","LOC Open","LOC Close"])
+                    dollar_cols=["Hourly Payroll","Management Pay","Overhead","Interest Paid",
+                                 "Collections","Cash Open","Credit Drawn","Credit Repaid",
+                                 "Cash Close","Credit Open","Credit Close"])
                 if all(c in wdf.columns for c in ["check_ar","check_loc","check_cash"]):
                     max_err = wdf[["check_ar","check_loc","check_cash"]].max().max()
                     if max_err < 0.01:
@@ -1592,17 +1591,17 @@ with tab_detail:
         # ── Charts moved from Brief (Revenue vs Costs, Margins, Payroll Float, Break-Even) ──
         section("Revenue vs. Costs")
         fig_rv = _bar(mo, "period", ["hourly_labor","salaried_cost","overhead"],
-                      ["Hourly Labor","Salaried Mgmt","Overhead"], "Monthly Cost Stack")
+                      ["Inspector & Lead Pay","Management Pay","Overhead"], "Monthly Cost Stack")
         fig_rv.add_trace(go.Scatter(x=mo["period"], y=mo["revenue"], name="Revenue",
             mode="lines", line=dict(color=PC[1], width=2)))
         st.plotly_chart(fig_rv, use_container_width=True, config=_CHART_CONFIG)
 
         _fc1, _fc2 = st.columns(2)
         with _fc1:
-            section("Net Income (After Interest)")
+            section("Net Profit (After Borrowing Costs)")
             st.plotly_chart(_line(mo, "period",
                 ["ebitda", "ebitda_after_interest"],
-                ["Operating Profit", "Net Income (after interest)"],
+                ["Operating Profit", "Net Profit (after borrowing costs)"],
                 "Monthly Profit"), use_container_width=True, config=_CHART_CONFIG)
         with _fc2:
             section("Profit Margins")
@@ -1613,11 +1612,11 @@ with tab_detail:
 
         st.divider()
 
-        # ── Payroll Float ─────────────────────────────────────────────────
-        section("Payroll Float -- Cash Out vs. Cash In")
+        # ── Payroll Timing Gap ─────────────────────────────────────────────────
+        section("Payroll Timing Gap -- Cash Out vs. Cash In")
         st.caption(
             "Your credit line bridges the gap between weekly payroll and monthly customer payments. "
-            f"With Net {int(a['net_days'])} terms, you pay employees weeks before cash arrives."
+            f"With {int(a['net_days'])}-day payment terms, you pay employees weeks before cash arrives."
         )
         if all(c in wdf.columns for c in ["payroll_cash_out", "salaried_wk", "overhead_wk"]):
             wdf_pf = wdf.copy()
@@ -1667,7 +1666,7 @@ with tab_detail:
         fig_wf = go.Figure(go.Waterfall(
             orientation="v",
             measure=["absolute","relative","relative","relative","relative","relative","relative","relative","total"],
-            x=["Starting Cash","+ Customer Payments","- Hourly Payroll","- Salaried Mgmt",
+            x=["Starting Cash","+ Customer Payments","- Inspector & Lead Pay","- Management Pay",
                "- Overhead","- Interest","+ Credit Draw","- Credit Repay","Ending Cash"],
             y=wf_values,
             connector=dict(line=dict(color="#334155")),
@@ -1771,17 +1770,17 @@ with tab_detail:
         is_df = pd.DataFrame({
             "Line Item": [
                 "Revenue", "",
-                "  Hourly Labor (Inspectors & Team Leads)",
-                "  Salaried Management",
+                "  Inspector & Lead Pay",
+                "  Management Pay",
                 "  Management Turnover & Replacement",
                 "  Fixed Overhead",
                 "Total Expenses", "",
-                "Operating Profit (EBITDA)",
+                "Operating Profit",
                 "  Credit Line Interest",
-                "Net Income (pre-tax)", "",
+                "Profit Before Tax", "",
                 f"  SC State Tax ({a.get('sc_state_tax_rate', 0.059):.1%})",
                 f"  Federal Tax ({a.get('federal_tax_rate', 0.21):.0%})",
-                "Net Income (after tax)",
+                "Net Profit (after tax)",
             ],
             "Amount": [
                 tot_rev, None,
@@ -1801,11 +1800,11 @@ with tab_detail:
 
         def _is_style(row):
             lbl = row["Line Item"]
-            if lbl in ("Revenue", "Net Income (after tax)"):
+            if lbl in ("Revenue", "Net Profit (after tax)"):
                 return ["font-weight:bold; color:#52D68A"] * len(row)
             if lbl == "Total Expenses":
                 return ["font-weight:bold; color:#E05252"] * len(row)
-            if lbl in ("Operating Profit (EBITDA)", "Net Income (pre-tax)"):
+            if lbl in ("Operating Profit", "Profit Before Tax"):
                 return ["font-weight:bold"] * len(row)
             return [""] * len(row)
 
@@ -1852,28 +1851,28 @@ with tab_detail:
                                 "pretax_margin","net_income_after_tax","net_margin_at","peak_loc"]].rename(columns={
                 "year_label": "Year", "avg_inspectors": "Avg Inspectors",
                 "revenue": "Revenue", "total_expenses": "Total Expenses",
-                "ebitda": "Oper. Profit", "oper_margin": "Oper. %",
-                "interest": "Interest", "ebitda_after_interest": "Pre-Tax Income",
-                "pretax_margin": "Pre-Tax %", "net_income_after_tax": "Net Income",
+                "ebitda": "Operating Profit", "oper_margin": "Oper. %",
+                "interest": "Interest", "ebitda_after_interest": "Pre-Tax Profit",
+                "pretax_margin": "Pre-Tax %", "net_income_after_tax": "Net Profit",
                 "net_margin_at": "Net %", "peak_loc": "Peak Credit Line",
             })
             _fmt_table(ann_disp,
-                dollar_cols=["Revenue","Total Expenses","Oper. Profit","Interest","Pre-Tax Income","Net Income","Peak Credit Line"],
+                dollar_cols=["Revenue","Total Expenses","Operating Profit","Interest","Pre-Tax Profit","Net Profit","Peak Credit Line"],
                 pct_cols=["Oper. %","Pre-Tax %","Net %"],
-                highlight_neg="Net Income")
+                highlight_neg="Net Profit")
         else:
             ann_disp = annual[["year_label","avg_inspectors","revenue","total_expenses",
                                 "ebitda","oper_margin","interest","ebitda_after_interest","pretax_margin","peak_loc"]].rename(columns={
                 "year_label": "Year", "avg_inspectors": "Avg Inspectors",
                 "revenue": "Revenue", "total_expenses": "Total Expenses",
-                "ebitda": "Oper. Profit", "oper_margin": "Oper. %",
-                "interest": "Interest", "ebitda_after_interest": "Net Income",
+                "ebitda": "Operating Profit", "oper_margin": "Oper. %",
+                "interest": "Interest", "ebitda_after_interest": "Net Profit",
                 "pretax_margin": "Net %", "peak_loc": "Peak Credit Line",
             })
             _fmt_table(ann_disp,
-                dollar_cols=["Revenue","Total Expenses","Oper. Profit","Interest","Net Income","Peak Credit Line"],
+                dollar_cols=["Revenue","Total Expenses","Operating Profit","Interest","Net Profit","Peak Credit Line"],
                 pct_cols=["Oper. %","Net %"],
-                highlight_neg="Net Income")
+                highlight_neg="Net Profit")
 
         st.divider()
 
@@ -1927,7 +1926,7 @@ with tab_detail:
                 "Ops Coords": _oc,
                 "Field Sups": _fs,
                 "Reg. Mgrs": _rm,
-                "Total Salaried Mgmt": int(_oc + _fs + _rm + 1),
+                "Total Salaried Managers": int(_oc + _fs + _rm + 1),
                 "Salaried Cost / Month": _sal_mo,
             })
         _sc_df = pd.DataFrame(_scale_rows)
@@ -1951,7 +1950,7 @@ with tab_detail:
             _lead_st = mo_s["lead_rev_st"].sum() if "lead_rev_st" in mo_s.columns else 0
             _lead_ot = mo_s["lead_rev_ot"].sum() if "lead_rev_ot" in mo_s.columns else 0
             fig_rp = go.Figure(go.Pie(
-                labels=["Inspector Regular Time","Inspector Overtime","Team Lead Regular Time","Team Lead Overtime"],
+                labels=["Inspector Regular Hours","Inspector Overtime","Team Lead Regular Hours","Team Lead Overtime"],
                 values=[mo_s["insp_rev_st"].sum(), mo_s["insp_rev_ot"].sum(), _lead_st, _lead_ot],
                 hole=0.42, marker_colors=PC[:4]
             ))
@@ -1959,19 +1958,19 @@ with tab_detail:
             st.plotly_chart(fig_rp, use_container_width=True, config=_CHART_CONFIG)
         with c2:
             fig_ep = go.Figure(go.Pie(
-                labels=["Hourly Labor","Salaried Management","Turnover & Replacement","Fixed Overhead"],
+                labels=["Inspector & Lead Pay","Management Pay","Turnover & Replacement","Fixed Overhead"],
                 values=[tot_hl, tot_sal, tot_to, tot_fovhd],
                 hole=0.42, marker_colors=[PC[3], PC[2], PC[4], PC[5]]
             ))
             fig_ep.update_layout(template=TPL, height=280, title="Expenses by Component", margin=dict(l=10,r=10,t=40,b=10))
             st.plotly_chart(fig_ep, use_container_width=True, config=_CHART_CONFIG)
 
-        section("Monthly Revenue vs. Net Income")
+        section("Monthly Revenue vs. Net Profit")
         fig_t = go.Figure()
         fig_t.add_trace(go.Bar(x=mo_s["period"], y=mo_s["revenue"], name="Revenue",
                                marker_color=PC[0], opacity=0.7))
         fig_t.add_trace(go.Scatter(x=mo_s["period"], y=mo_s["ebitda_after_interest"],
-                                   name="Net Income", mode="lines+markers",
+                                   name="Net Profit", mode="lines+markers",
                                    line=dict(color=PC[1], width=2)))
         fig_t.add_hline(y=0, line_dash="dot", line_color="#444", line_width=1)
         fig_t.update_layout(template=TPL, height=300, margin=dict(l=10,r=10,t=10,b=60),
@@ -2002,15 +2001,15 @@ with tab_detail:
             st.markdown("**Does it work and is it competitive?**")
             if _ss_ni2 > 0:
                 st.success(
-                    f"Yes -- at steady state the division generates **{fmt_dollar(_ss_ni2)}/month** "
-                    f"net after interest ({fmt_dollar(_ss_ni2 * 12)}/year). "
-                    f"It reaches profitability in **{_be_mo2}**. "
-                    f"Year 1 net income: **{fmt_dollar(_yr1_ni2)}**."
+                    f"Yes -- when running at full speed the division generates **{fmt_dollar(_ss_ni2)}/month** "
+                    f"after borrowing costs ({fmt_dollar(_ss_ni2 * 12)}/year). "
+                    f"It turns profitable in **{_be_mo2}**. "
+                    f"Year 1 net profit: **{fmt_dollar(_yr1_ni2)}**."
                 )
             else:
                 st.error(
-                    f"Not yet -- steady-state net income is **{fmt_dollar(_ss_ni2)}/month**. "
-                    "Adjust bill rate, burden, or headcount to reach profitability."
+                    f"Not yet -- net profit at full speed is **{fmt_dollar(_ss_ni2)}/month**. "
+                    "Adjust bill rate, payroll overhead, or headcount to reach profitability."
                 )
 
             st.markdown("**How big can this become inside OpSource?**")
@@ -2018,29 +2017,29 @@ with tab_detail:
                 f"At **{_max_insp} peak inspectors**, this scenario generates "
                 f"**{fmt_dollar(mo_full['revenue'].max())}/month** in peak revenue. "
                 f"Scaling to 150-200 inspectors is achievable within 24-36 months with "
-                f"the right supervisor layering and credit facility. Each additional inspector "
+                f"the right supervisor layering and credit line. Each additional inspector "
                 f"at current rates adds **{fmt_dollar(float(a.get('st_bill_rate', 39)) * (float(a.get('st_hours', 40)) + float(a.get('ot_hours', 10)) * float(a.get('ot_bill_premium', 1.5))) * 52 / 12)}/month** in annualized revenue."
             )
 
         with iq2:
-            st.markdown("**What capital is required and what is the cost of money?**")
+            st.markdown("**What money do you need and what does it cost?**")
             _max_loc3 = float(a.get("max_loc", 1_000_000))
             _apr3 = float(a.get("apr", 0.085))
             if _peak2 <= _max_loc3:
                 st.success(
                     f"Peak credit draw: **{fmt_dollar(_peak2)}** in **{_peak_mo2}** -- within your "
-                    f"**{fmt_dollar(_max_loc3)}** facility. "
+                    f"**{fmt_dollar(_max_loc3)}** credit line. "
                     f"Total interest cost: **{fmt_dollar(_tot_int2)}** at {_apr3:.1%} APR. "
-                    f"EBITDA/Interest coverage at steady state: **{_int_cov2:.1f}x**. "
-                    f"Return on peak capital: **{_ropc2:.1f}x** annualized."
+                    f"Profit vs. borrowing cost at full speed: **{_int_cov2:.1f}x**. "
+                    f"Return on money deployed: **{_ropc2:.1f}x** annualized."
                 )
             else:
                 st.error(
-                    f"Peak draw **{fmt_dollar(_peak2)}** exceeds your **{fmt_dollar(_max_loc3)}** facility. "
+                    f"Peak draw **{fmt_dollar(_peak2)}** exceeds your **{fmt_dollar(_max_loc3)}** credit line. "
                     f"Increase the credit line or reduce terms/headcount ramp."
                 )
 
-            st.markdown("**Can the team execute without owner involvement?**")
+            st.markdown("**Does it run without you?**")
             st.info(
                 f"Yes -- the model includes a fully-loaded GM at "
                 f"**{fmt_dollar(float(a.get('gm_loaded_annual', 117_000)) / 12)}/month** "
@@ -2091,7 +2090,7 @@ with tab_detail:
             )
             return fig
 
-        s1, s2, s3, s4, s5, s6 = st.tabs(["Payment Terms","Bill Rate","Payroll Burden","Overtime","Utilization & Wages","Bad Debt & Turnover"])
+        s1, s2, s3, s4, s5, s6 = st.tabs(["Payment Terms","Bill Rate","Payroll Overhead","Overtime","Labor Rates","Risk Factors"])
 
         with s1:
             section("How payment terms drive your credit line and returns")
@@ -2101,15 +2100,15 @@ with tab_detail:
             c1, c2 = st.columns(2)
             with c1:
                 fig_nd1 = go.Figure(go.Scatter(x=nd_df["value"], y=nd_df["peak_loc"], mode="lines+markers", line=dict(color=PC[0], width=2), marker=dict(size=7)))
-                fig_nd1.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Peak Credit Line vs. Payment Terms", xaxis_title="Net Days", yaxis=dict(tickformat="$,.0f"))
+                fig_nd1.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Peak Credit Line vs. Payment Terms", xaxis_title="Days to Get Paid", yaxis=dict(tickformat="$,.0f"))
                 fig_nd1.add_hline(y=float(a["max_loc"]), line_dash="dot", line_color=PC[3], annotation_text="Your Credit Limit")
                 st.plotly_chart(fig_nd1, use_container_width=True, config=_CHART_CONFIG)
             with c2:
                 fig_nd2 = go.Figure(go.Scatter(x=nd_df["value"], y=nd_df["ebitda_ai_margin"], mode="lines+markers", line=dict(color=PC[1], width=2), marker=dict(size=7)))
-                fig_nd2.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Income Margin vs. Payment Terms", xaxis_title="Net Days", yaxis=dict(tickformat=".1%"))
+                fig_nd2.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Profit Margin vs. Payment Terms", xaxis_title="Days to Get Paid", yaxis=dict(tickformat=".1%"))
                 fig_nd2.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
                 st.plotly_chart(fig_nd2, use_container_width=True, config=_CHART_CONFIG)
-            _fmt_table(nd_df[["value","peak_loc","annual_interest","ebitda_ai","ebitda_ai_margin"]].rename(columns={"value":"Net Days","peak_loc":"Peak Credit","annual_interest":"Total Interest","ebitda_ai":"Net Income","ebitda_ai_margin":"Net Margin"}), dollar_cols=["Peak Credit","Total Interest","Net Income"], pct_cols=["Net Margin"], highlight_neg="Net Income")
+            _fmt_table(nd_df[["value","peak_loc","annual_interest","ebitda_ai","ebitda_ai_margin"]].rename(columns={"value":"Days to Get Paid","peak_loc":"Peak Credit","annual_interest":"Total Interest","ebitda_ai":"Net Profit","ebitda_ai_margin":"Net Margin"}), dollar_cols=["Peak Credit","Total Interest","Net Profit"], pct_cols=["Net Margin"], highlight_neg="Net Profit")
 
         with s2:
             section("Bill rate impact on margin, credit need, and total income")
@@ -2119,17 +2118,17 @@ with tab_detail:
             c1, c2 = st.columns(2)
             with c1:
                 fig_br1 = go.Figure(go.Scatter(x=br_df["value"], y=br_df["ebitda_ai_margin"], mode="lines+markers", line=dict(color=PC[1], width=2), marker=dict(size=7)))
-                fig_br1.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Margin vs. Bill Rate", xaxis_title="Bill Rate ($/hr)", yaxis=dict(tickformat=".1%"))
+                fig_br1.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Profit Margin vs. Bill Rate", xaxis_title="Bill Rate ($/hr)", yaxis=dict(tickformat=".1%"))
                 fig_br1.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
                 st.plotly_chart(fig_br1, use_container_width=True, config=_CHART_CONFIG)
             with c2:
                 fig_br2 = go.Figure(go.Scatter(x=br_df["value"], y=br_df["ebitda_ai"], mode="lines+markers", line=dict(color=PC[0], width=2), marker=dict(size=7)))
-                fig_br2.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Total Net Income vs. Bill Rate", xaxis_title="Bill Rate ($/hr)", yaxis=dict(tickformat="$,.0f"))
+                fig_br2.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Total Net Profit vs. Bill Rate", xaxis_title="Bill Rate ($/hr)", yaxis=dict(tickformat="$,.0f"))
                 st.plotly_chart(fig_br2, use_container_width=True, config=_CHART_CONFIG)
-            _fmt_table(br_df[["value","ebitda_margin","ebitda_ai_margin","peak_loc","ebitda_ai"]].rename(columns={"value":"Bill Rate","ebitda_margin":"Oper. Margin","ebitda_ai_margin":"Net Margin","peak_loc":"Peak Credit","ebitda_ai":"Net Income"}), dollar_cols=["Peak Credit","Net Income"], pct_cols=["Oper. Margin","Net Margin"])
+            _fmt_table(br_df[["value","ebitda_margin","ebitda_ai_margin","peak_loc","ebitda_ai"]].rename(columns={"value":"Bill Rate","ebitda_margin":"Oper. Margin","ebitda_ai_margin":"Net Margin","peak_loc":"Peak Credit","ebitda_ai":"Net Profit"}), dollar_cols=["Peak Credit","Net Profit"], pct_cols=["Oper. Margin","Net Margin"])
 
         with s3:
-            section("How payroll burden compresses margin and grows credit need")
+            section("How payroll overhead compresses margin and grows credit need")
             burd_vals = [0.20, 0.25, 0.28, 0.30, 0.33, 0.35, 0.38, 0.40, 0.45]
             with st.spinner("Running sensitivity..."):
                 burd_df = run_sensitivity(a, hc, "burden", burd_vals)
@@ -2137,7 +2136,7 @@ with tab_detail:
             c1, c2 = st.columns(2)
             with c1:
                 fig_b1 = go.Figure(go.Scatter(x=burd_df["pct"], y=burd_df["ebitda_ai_margin"], mode="lines+markers", line=dict(color=PC[1], width=2), marker=dict(size=7)))
-                fig_b1.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Margin vs. Burden Rate", xaxis_title="Burden (%)", yaxis=dict(tickformat=".1%"))
+                fig_b1.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Margin vs. Payroll Overhead", xaxis_title="Payroll Overhead (%)", yaxis=dict(tickformat=".1%"))
                 fig_b1.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
                 fig_b1.add_shape(
                     type="line", x0=35, x1=35, y0=0, y1=1,
@@ -2153,9 +2152,9 @@ with tab_detail:
                 st.plotly_chart(fig_b1, use_container_width=True, config=_CHART_CONFIG)
             with c2:
                 fig_b2 = go.Figure(go.Scatter(x=burd_df["pct"], y=burd_df["peak_loc"], mode="lines+markers", line=dict(color=PC[3], width=2), marker=dict(size=7)))
-                fig_b2.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Peak Credit Line vs. Burden Rate", xaxis_title="Burden (%)", yaxis=dict(tickformat="$,.0f"))
+                fig_b2.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Peak Credit Line vs. Payroll Overhead", xaxis_title="Payroll Overhead (%)", yaxis=dict(tickformat="$,.0f"))
                 st.plotly_chart(fig_b2, use_container_width=True, config=_CHART_CONFIG)
-            _fmt_table(burd_df[["pct","ebitda_ai","ebitda_ai_margin","peak_loc"]].rename(columns={"pct":"Burden (%)","ebitda_ai":"Net Income","ebitda_ai_margin":"Net Margin","peak_loc":"Peak Credit"}), dollar_cols=["Net Income","Peak Credit"], pct_cols=["Net Margin"])
+            _fmt_table(burd_df[["pct","ebitda_ai","ebitda_ai_margin","peak_loc"]].rename(columns={"pct":"Payroll Overhead (%)","ebitda_ai":"Net Profit","ebitda_ai_margin":"Net Margin","peak_loc":"Peak Credit"}), dollar_cols=["Net Profit","Peak Credit"], pct_cols=["Net Margin"])
 
         with s4:
             section("How overtime hours affect revenue, margin, and credit need")
@@ -2165,17 +2164,17 @@ with tab_detail:
             c1, c2 = st.columns(2)
             with c1:
                 fig_ot1 = go.Figure(go.Scatter(x=ot_df["value"], y=ot_df["ebitda_ai_margin"], mode="lines+markers", line=dict(color=PC[1], width=2), marker=dict(size=7)))
-                fig_ot1.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Margin vs. OT Hours/Week", xaxis_title="OT Hrs/wk", yaxis=dict(tickformat=".1%"))
+                fig_ot1.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Margin vs. Overtime Hours/Week", xaxis_title="Overtime Hrs/wk", yaxis=dict(tickformat=".1%"))
                 st.plotly_chart(fig_ot1, use_container_width=True, config=_CHART_CONFIG)
             with c2:
                 fig_ot2 = go.Figure(go.Scatter(x=ot_df["value"], y=ot_df["total_revenue"], mode="lines+markers", line=dict(color=PC[0], width=2), marker=dict(size=7)))
-                fig_ot2.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Total Revenue vs. OT Hours/Week", xaxis_title="OT Hrs/wk", yaxis=dict(tickformat="$,.0f"))
+                fig_ot2.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Total Revenue vs. Overtime Hours/Week", xaxis_title="Overtime Hrs/wk", yaxis=dict(tickformat="$,.0f"))
                 st.plotly_chart(fig_ot2, use_container_width=True, config=_CHART_CONFIG)
-            _fmt_table(ot_df[["value","ebitda_margin","ebitda_ai_margin","total_revenue","ebitda_ai"]].rename(columns={"value":"OT Hrs/wk","ebitda_margin":"Oper. Margin","ebitda_ai_margin":"Net Margin","total_revenue":"Total Revenue","ebitda_ai":"Net Income"}), dollar_cols=["Total Revenue","Net Income"], pct_cols=["Oper. Margin","Net Margin"])
+            _fmt_table(ot_df[["value","ebitda_margin","ebitda_ai_margin","total_revenue","ebitda_ai"]].rename(columns={"value":"Overtime Hrs/wk","ebitda_margin":"Oper. Margin","ebitda_ai_margin":"Net Margin","total_revenue":"Total Revenue","ebitda_ai":"Net Profit"}), dollar_cols=["Total Revenue","Net Profit"], pct_cols=["Oper. Margin","Net Margin"])
 
         with s5:
             section("How utilization and wage rates affect margin and credit need")
-            st.caption("Utilization = % of scheduled hours actually billed. Wage inflation = inspector base pay increase.")
+            st.caption("Utilization = % of scheduled hours actually billed. Wage change = inspector base pay increase.")
             sa, sb = st.columns(2)
             with sa:
                 section("Inspector Utilization Rate")
@@ -2186,9 +2185,9 @@ with tab_detail:
                 fig_u = go.Figure()
                 fig_u.add_trace(go.Scatter(x=util_df["pct"], y=util_df["ebitda_ai_margin"], mode="lines+markers", name="Net Margin", line=dict(color=PC[1], width=2), marker=dict(size=7)))
                 fig_u.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
-                fig_u.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Margin vs. Utilization Rate", xaxis_title="Utilization (%)", yaxis=dict(tickformat=".1%"))
+                fig_u.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Profit Margin vs. Utilization Rate", xaxis_title="Utilization (%)", yaxis=dict(tickformat=".1%"))
                 st.plotly_chart(fig_u, use_container_width=True, config=_CHART_CONFIG)
-                _fmt_table(util_df[["pct","ebitda_ai_margin","ebitda_ai","peak_loc"]].rename(columns={"pct":"Utilization (%)","ebitda_ai_margin":"Net Margin","ebitda_ai":"Net Income","peak_loc":"Peak Credit"}), dollar_cols=["Net Income","Peak Credit"], pct_cols=["Net Margin"])
+                _fmt_table(util_df[["pct","ebitda_ai_margin","ebitda_ai","peak_loc"]].rename(columns={"pct":"Utilization (%)","ebitda_ai_margin":"Net Margin","ebitda_ai":"Net Profit","peak_loc":"Peak Credit"}), dollar_cols=["Net Profit","Peak Credit"], pct_cols=["Net Margin"])
             with sb:
                 section("Inspector Wage Inflation")
                 base_wage = float(a.get("inspector_wage", 20.0))
@@ -2210,9 +2209,9 @@ with tab_detail:
                     xanchor="right", yanchor="top"
                 )
                 fig_w.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
-                fig_w.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Margin vs. Inspector Wage", xaxis_title="Wage ($/hr)", yaxis=dict(tickformat=".1%"))
+                fig_w.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Profit Margin vs. Inspector Wage", xaxis_title="Wage ($/hr)", yaxis=dict(tickformat=".1%"))
                 st.plotly_chart(fig_w, use_container_width=True, config=_CHART_CONFIG)
-                _fmt_table(wage_df[["value","ebitda_ai_margin","ebitda_ai","peak_loc"]].rename(columns={"value":"Wage ($/hr)","ebitda_ai_margin":"Net Margin","ebitda_ai":"Net Income","peak_loc":"Peak Credit"}), dollar_cols=["Net Income","Peak Credit"], pct_cols=["Net Margin"])
+                _fmt_table(wage_df[["value","ebitda_ai_margin","ebitda_ai","peak_loc"]].rename(columns={"value":"Wage ($/hr)","ebitda_ai_margin":"Net Margin","ebitda_ai":"Net Profit","peak_loc":"Peak Credit"}), dollar_cols=["Net Profit","Peak Credit"], pct_cols=["Net Margin"])
 
         with s6:
             section("How write-off rate and inspector turnover affect the bottom line")
@@ -2224,11 +2223,11 @@ with tab_detail:
                     bd_df = run_sensitivity(a, hc, "bad_debt_pct", bd_vals)
                 bd_df["pct_lbl"] = (bd_df["value"] * 100).round(1)
                 fig_bd = go.Figure()
-                fig_bd.add_trace(go.Scatter(x=bd_df["pct_lbl"], y=bd_df["ebitda_ai"], mode="lines+markers", name="Net Income", line=dict(color=PC[3], width=2), marker=dict(size=7)))
+                fig_bd.add_trace(go.Scatter(x=bd_df["pct_lbl"], y=bd_df["ebitda_ai"], mode="lines+markers", name="Net Profit", line=dict(color=PC[3], width=2), marker=dict(size=7)))
                 fig_bd.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
-                fig_bd.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Total Net Income vs. Bad Debt Rate", xaxis_title="Write-Off Rate (%)", yaxis=dict(tickformat="$,.0f"))
+                fig_bd.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Total Net Profit vs. Bad Debt Rate", xaxis_title="Write-Off Rate (%)", yaxis=dict(tickformat="$,.0f"))
                 st.plotly_chart(fig_bd, use_container_width=True, config=_CHART_CONFIG)
-                _fmt_table(bd_df[["pct_lbl","ebitda_ai_margin","ebitda_ai"]].rename(columns={"pct_lbl":"Bad Debt (%)","ebitda_ai_margin":"Net Margin","ebitda_ai":"Net Income"}), dollar_cols=["Net Income"], pct_cols=["Net Margin"], highlight_neg="Net Income")
+                _fmt_table(bd_df[["pct_lbl","ebitda_ai_margin","ebitda_ai"]].rename(columns={"pct_lbl":"Bad Debt (%)","ebitda_ai_margin":"Net Margin","ebitda_ai":"Net Profit"}), dollar_cols=["Net Profit"], pct_cols=["Net Margin"], highlight_neg="Net Profit")
             with sd:
                 section("Inspector Annual Turnover Rate")
                 to_vals = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
@@ -2236,7 +2235,7 @@ with tab_detail:
                     to_df = run_sensitivity(a, hc, "inspector_turnover_rate", to_vals)
                 to_df["pct_lbl"] = (to_df["value"] * 100).round(0).astype(int)
                 fig_to = go.Figure()
-                fig_to.add_trace(go.Scatter(x=to_df["pct_lbl"], y=to_df["ebitda_ai"], mode="lines+markers", name="Net Income", line=dict(color=PC[4], width=2), marker=dict(size=7)))
+                fig_to.add_trace(go.Scatter(x=to_df["pct_lbl"], y=to_df["ebitda_ai"], mode="lines+markers", name="Net Profit", line=dict(color=PC[4], width=2), marker=dict(size=7)))
                 fig_to.add_hline(y=0, line_dash="dot", line_color="#EF4444", line_width=1)
                 fig_to.add_shape(
                     type="line", x0=100, x1=100, y0=0, y1=1,
@@ -2249,19 +2248,19 @@ with tab_detail:
                     showarrow=False, textangle=-90,
                     xanchor="right", yanchor="top"
                 )
-                fig_to.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Income vs. Inspector Turnover", xaxis_title="Annual Turnover Rate (%)", yaxis=dict(tickformat="$,.0f"))
+                fig_to.update_layout(template=TPL, height=240, margin=dict(l=10,r=10,t=30,b=10), title="Net Profit vs. Inspector Turnover", xaxis_title="Annual Turnover Rate (%)", yaxis=dict(tickformat="$,.0f"))
                 st.plotly_chart(fig_to, use_container_width=True, config=_CHART_CONFIG)
-                _fmt_table(to_df[["pct_lbl","ebitda_ai_margin","ebitda_ai"]].rename(columns={"pct_lbl":"Turnover (%)","ebitda_ai_margin":"Net Margin","ebitda_ai":"Net Income"}), dollar_cols=["Net Income"], pct_cols=["Net Margin"], highlight_neg="Net Income")
+                _fmt_table(to_df[["pct_lbl","ebitda_ai_margin","ebitda_ai"]].rename(columns={"pct_lbl":"Turnover (%)","ebitda_ai_margin":"Net Margin","ebitda_ai":"Net Profit"}), dollar_cols=["Net Profit"], pct_cols=["Net Margin"], highlight_neg="Net Profit")
 
         st.divider()
 
         section("Cross-Variable Sensitivity Heatmaps")
         st.caption("Each cell shows the outcome when BOTH variables change simultaneously. Green = healthy, red = danger.")
 
-        hm1, hm2, hm3 = st.tabs(["Bill Rate x Burden -> Net Margin", "Net Days x Inspectors -> Peak LOC", "Bill Rate x Net Days -> Interest Cost"])
+        hm1, hm2, hm3 = st.tabs(["Bill Rate x Payroll Overhead -> Net Margin", "Days to Get Paid x Inspectors -> Peak Credit", "Bill Rate x Days to Get Paid -> Interest Cost"])
 
         with hm1:
-            if st.button("Run Heatmap: Bill Rate x Burden", use_container_width=True):
+            if st.button("Run Heatmap: Bill Rate x Payroll Overhead", use_container_width=True):
                 bill_rates  = [37.0, 38.0, 39.0, 40.0, 41.0, 42.0]
                 burden_pcts = [0.25, 0.28, 0.30, 0.33, 0.35, 0.38]
                 rows = []
@@ -2278,11 +2277,11 @@ with tab_detail:
                             prog.progress(done / total)
                 prog.empty()
                 hm_df = pd.DataFrame(rows)
-                fig_hm = _heatmap(hm_df, "Bill Rate", "Burden", "Net Margin", "Net Income Margin -- Bill Rate x Burden", fmt=".1%")
+                fig_hm = _heatmap(hm_df, "Bill Rate", "Burden", "Net Margin", "Net Profit Margin -- Bill Rate x Payroll Overhead", fmt=".1%")
                 st.plotly_chart(fig_hm, use_container_width=True, config=_CHART_CONFIG)
 
         with hm2:
-            if st.button("Run Heatmap: Net Days x Inspectors", use_container_width=True):
+            if st.button("Run Heatmap: Days to Get Paid x Inspectors", use_container_width=True):
                 net_days_list = [30, 45, 60, 90, 120]
                 insp_counts   = [20, 30, 40, 50, 60, 75]
                 rows = []
@@ -2295,16 +2294,16 @@ with tab_detail:
                             _a2 = a.copy(); _a2["net_days"] = nd
                             _hc2 = [ic] * 120
                             _df = run_sensitivity(_a2, _hc2, "net_days", [nd])
-                            rows.append({"Net Days": str(nd), "Inspectors": str(ic), "Peak LOC": float(_df["peak_loc"].iloc[0])})
+                            rows.append({"Days to Get Paid": str(nd), "Inspectors": str(ic), "Peak LOC": float(_df["peak_loc"].iloc[0])})
                             done2 += 1
                             prog2.progress(done2 / total2)
                 prog2.empty()
                 hm_df2 = pd.DataFrame(rows)
-                fig_hm2 = _heatmap(hm_df2, "Net Days", "Inspectors", "Peak LOC", "Peak Credit Line -- Net Days x Inspector Count", fmt="$,.0f", reverse=True)
+                fig_hm2 = _heatmap(hm_df2, "Days to Get Paid", "Inspectors", "Peak LOC", "Peak Credit Line -- Days to Get Paid x Inspector Count", fmt="$,.0f", reverse=True)
                 st.plotly_chart(fig_hm2, use_container_width=True, config=_CHART_CONFIG)
 
         with hm3:
-            if st.button("Run Heatmap: Bill Rate x Net Days", use_container_width=True):
+            if st.button("Run Heatmap: Bill Rate x Days to Get Paid", use_container_width=True):
                 bill_rates3  = [37.0, 38.0, 39.0, 40.0, 41.0, 42.0]
                 net_days3    = [30, 45, 60, 90, 120, 150]
                 rows3 = []
@@ -2316,12 +2315,12 @@ with tab_detail:
                         for nd3 in net_days3:
                             _a3 = a.copy(); _a3["st_bill_rate"] = br3; _a3["net_days"] = nd3
                             _df3 = run_sensitivity(_a3, hc, "st_bill_rate", [br3])
-                            rows3.append({"Bill Rate": f"${br3:.0f}", "Net Days": str(nd3), "Annual Interest": float(_df3["annual_interest"].iloc[0])})
+                            rows3.append({"Bill Rate": f"${br3:.0f}", "Days to Get Paid": str(nd3), "Annual Interest": float(_df3["annual_interest"].iloc[0])})
                             done3 += 1
                             prog3.progress(done3 / total3)
                 prog3.empty()
                 hm_df3 = pd.DataFrame(rows3)
-                fig_hm3 = _heatmap(hm_df3, "Bill Rate", "Net Days", "Annual Interest", "Annual Interest Cost -- Bill Rate x Net Days", fmt="$,.0f", reverse=True)
+                fig_hm3 = _heatmap(hm_df3, "Bill Rate", "Days to Get Paid", "Annual Interest", "Annual Interest Cost -- Bill Rate x Days to Get Paid", fmt="$,.0f", reverse=True)
                 st.plotly_chart(fig_hm3, use_container_width=True, config=_CHART_CONFIG)
 
         st.divider()
