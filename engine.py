@@ -61,7 +61,7 @@ def default_assumptions() -> dict:
         "gm_ramp_months": 0,   # months at 0.5 FTE before going to 1.0
         # AR / collections
         "billing_frequency": "monthly",   # "monthly" | "weekly"
-        "net_days": 60,
+        "net_days": 120,
         # LOC
         "apr": 0.05,
         "max_loc": 1_000_000.0,
