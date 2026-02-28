@@ -897,6 +897,77 @@ PRESETS = {
             (61,120, 200),   # Hold at 200
         ]),
     },
+    "25–350 Employees over 60 Months": {
+        "assumptions": {**default_assumptions(),
+            # Billing — mid-to-large market rate
+            "st_bill_rate": 41.0,
+            "ot_hours": 10,
+            "ot_bill_mode": "passthrough",
+            # Labor costs
+            "inspector_wage": 21.0,
+            "burden": 0.29,
+            "lead_wage": 25.50,
+            "lead_st_hours": 40,
+            "lead_ot_hours": 10,
+            "team_lead_ratio": 12,
+            "lead_bill_premium": 1.0,
+            # Management
+            "gm_loaded_annual": 140_000,
+            "opscoord_base": 68_000,
+            "fieldsup_base": 74_000,
+            "regionalmgr_base": 118_000,
+            "mgmt_burden": 0.25,
+            # AR / cash
+            "net_days": 120,
+            "apr": 0.05,
+            "max_loc": 6_000_000,
+            "cash_buffer": 75_000,
+            "initial_cash": 35_000,
+            # Fixed overhead baseline
+            "software_monthly": 750,
+            "recruiting_monthly": 1_500,
+            "insurance_monthly": 2_000,
+            "travel_monthly": 750,
+            # Per-inspector overhead scaling
+            "software_per_inspector": 16.0,
+            "insurance_per_inspector": 11.0,
+            "travel_per_inspector": 7.0,
+            "recruiting_per_inspector": 13.0,
+            # Turnover / onboarding
+            "inspector_onboarding_cost": 550.0,
+            "inspector_turnover_rate": 1.1,      # 110% annual
+            "mgmt_winddown_weeks": 12,
+            # Bad debt
+            "bad_debt_pct": 0.005,
+            # Corp alloc
+            "corp_alloc_mode": "pct_revenue",
+            "corp_alloc_pct": 0.02,
+            "corp_alloc_fixed": 0.0,
+        },
+        # Headcount ramp: 25 → 350 inspectors by M60, gradual S-curve
+        "headcount": _build_hc([
+            (1,  2,   25),   # M1-2:   Initial deployment — 25 inspectors
+            (3,  4,   35),   # M3-4:   First growth phase
+            (5,  6,   45),   # M5-6:   2nd client
+            (7,  9,   65),   # M7-9:   3rd client
+            (10, 12,  85),   # M10-12: End of year 1
+            (13, 15, 110),   # Q1 Y2
+            (16, 18, 140),   # Q2 Y2
+            (19, 21, 170),   # Q3 Y2
+            (22, 24, 200),   # Q4 Y2 — 200 milestone
+            (25, 27, 225),   # Q1 Y3
+            (28, 30, 250),   # Q2 Y3 — first regional manager
+            (31, 33, 275),   # Q3 Y3
+            (34, 36, 300),   # Q4 Y3 — 300 milestone
+            (37, 40, 320),   # Q1 Y4 — growth decelerating
+            (41, 44, 335),   # Q2 Y4
+            (45, 48, 342),   # Q3 Y4
+            (49, 52, 348),   # Q4 Y4
+            (53, 56, 350),   # Q1 Y5 — 350 target reached
+            (57, 60, 350),   # Q2 Y5 — hold
+            (61,120, 350),   # Hold at 350
+        ]),
+    },
 }
 
 # ── Scenario drift detection ───────────────────────────────────────────────
