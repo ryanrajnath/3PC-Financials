@@ -1122,111 +1122,171 @@ if _L1:
 
     weekly_df, mo_full, qdf_full = st.session_state.results
     a = st.session_state.assumptions
-    mo = _apply_range(mo_full)
 
-    # ── Compute key numbers ───────────────────────────────────────────────
-    _mo_peak_idx = int(mo["loc_end"].idxmax()) if len(mo) else 0
-    _mo_peak_period = mo.loc[_mo_peak_idx, "period"] if len(mo) else "—"
-    _peak_rng = float(mo["loc_end"].max()) if len(mo) else 0
-    _ss_mo = mo.tail(12)
-    _ss_ebitda = float(_ss_mo["ebitda_after_interest"].mean())
-    _ss_annual = _ss_ebitda * 12
-    _profitable_rows = mo[mo["ebitda_after_interest"] > 0]
-    _be_month = _profitable_rows.iloc[0]["period"] if len(_profitable_rows) else "Not in range"
+    # ════════════════════════════════════════════════════════════════════
+    # SECTION 1 — Unit Economics
+    # ════════════════════════════════════════════════════════════════════
+    section("Unit Economics")
+    _bill = float(a["st_bill_rate"])
+    _wage = float(a["inspector_wage"])
+    _burd = float(a.get("burden", 0.30))
+    _loaded = _wage * (1 + _burd)
+    _gp_hr = _bill - _loaded
+    _gm_pct = (_gp_hr / _bill * 100) if _bill else 0
 
-    _max_loc = float(a.get("max_loc", 1_000_000))
-    n_loc = weekly_df["warn_loc_maxed"].sum() if "warn_loc_maxed" in weekly_df.columns else 0
-    _burden = float(a.get("burden", 0.30))
-
-    # ── Verdict banner — plain English ────────────────────────────────────
-    if _ss_ebitda > 0 and _peak_rng > 0:
-        st.markdown(
-            f'<div class="verdict-pass"><strong>This works.</strong> '
-            f"You'll need to borrow up to <strong>{fmt_dollar(_peak_rng)}</strong> "
-            f"({_mo_peak_period} is the peak). You start making money in "
-            f"<strong>{_be_month}</strong>, then earn about "
-            f"<strong>{fmt_dollar(_ss_ebitda)}/month</strong> once everything is running.</div>",
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            '<div class="verdict-fail"><strong>This doesn\'t work yet</strong> with these numbers. '
-            'Try charging more per hour or hiring more people.</div>',
-            unsafe_allow_html=True,
-        )
-
-    # ── 3 KPI cards (plain labels) ────────────────────────────────────────
-    _l1k1, _l1k2, _l1k3 = st.columns(3)
-    kpi(_l1k1, "Most You'll Borrow",  fmt_dollar(_peak_rng),   f"peaks in {_mo_peak_period}")
-    kpi(_l1k2, "Start Making Money",  _be_month,               "after all costs")
-    kpi(_l1k3, "Monthly Profit",      fmt_dollar(_ss_ebitda),   "when fully staffed")
+    _ue1, _ue2, _ue3, _ue4 = st.columns(4)
+    kpi(_ue1, "Bill Rate / Hr",        fmt_dollar(_bill),   "what the client pays")
+    kpi(_ue2, "Loaded Labor Cost / Hr", fmt_dollar(_loaded), f"wage + {_burd:.0%} burden")
+    kpi(_ue3, "Gross Profit / Hr",     fmt_dollar(_gp_hr),  "before overhead")
+    kpi(_ue4, "Gross Margin %",        f"{_gm_pct:.1f}%",   "per billable hour")
     st.divider()
 
-    # ── 2 charts side by side (simplified) ────────────────────────────────
-    _c1, _c2 = st.columns(2)
-    with _c1:
-        st.markdown(
-            '<p style="font-size:13px; font-weight:600; color:#334155; '
-            'letter-spacing:0.2px; margin-bottom:4px;">Borrowing & Cash</p>',
-            unsafe_allow_html=True,
-        )
-        _render_loc_chart_simple(mo, a)
-    with _c2:
-        st.markdown(
-            '<p style="font-size:13px; font-weight:600; color:#334155; '
-            'letter-spacing:0.2px; margin-bottom:4px;">Total Profit Over Time</p>',
-            unsafe_allow_html=True,
-        )
-        _render_ebitda_chart_simple(mo)
+    # ════════════════════════════════════════════════════════════════════
+    # SECTION 2 — Engagement Economics (8-week / 25-inspector job)
+    # ════════════════════════════════════════════════════════════════════
+    section("What One Engagement Produces")
+    st.caption("Based on a typical 8-week deployment with 25 inspectors")
 
+    _eng_wks  = 8
+    _eng_insp = 25
+    _st_hrs   = float(a.get("st_hours", 40))
+    _ot_hrs   = float(a.get("ot_hours", 10))
+    _lead_ratio = int(a.get("team_lead_ratio", 12))
+    _n_leads  = ceil(_eng_insp / _lead_ratio)
+    _lead_wage = float(a.get("lead_wage", 25.0))
+    _lead_st   = float(a.get("lead_st_hours", 40))
+    _lead_ot   = float(a.get("lead_ot_hours", 10))
+    _ot_pay_mult = float(a.get("ot_pay_multiplier", 1.5))
+    _ot_bill_prem = float(a.get("ot_bill_premium", 1.5))
+    _lead_bill_prem = float(a.get("lead_bill_premium", 1.0))
+
+    # Revenue per week
+    _insp_rev_wk = _eng_insp * (_st_hrs * _bill + _ot_hrs * _bill * _ot_bill_prem)
+    _lead_bill = _bill * _lead_bill_prem
+    _lead_rev_wk = _n_leads * (_lead_st * _lead_bill + _lead_ot * _lead_bill * _ot_bill_prem)
+    _eng_revenue = (_insp_rev_wk + _lead_rev_wk) * _eng_wks
+
+    # Labor per week
+    _insp_labor_wk = _eng_insp * (_st_hrs * _loaded + _ot_hrs * _wage * _ot_pay_mult * (1 + _burd))
+    _lead_loaded = _lead_wage * (1 + _burd)
+    _lead_labor_wk = _n_leads * (_lead_st * _lead_loaded + _lead_ot * _lead_wage * _ot_pay_mult * (1 + _burd))
+    _eng_labor = (_insp_labor_wk + _lead_labor_wk) * _eng_wks
+
+    # Overhead prorated
+    _fixed_mo = sum(float(a.get(k, 0)) for k in ("software_monthly", "recruiting_monthly", "insurance_monthly", "travel_monthly"))
+    _pi_mo = sum(float(a.get(k, 0)) for k in ("software_per_inspector", "insurance_per_inspector", "travel_per_inspector", "recruiting_per_inspector"))
+    _eng_overhead = (_fixed_mo + _pi_mo * _eng_insp) * (_eng_wks / 4.33)
+
+    _eng_ebitda = _eng_revenue - _eng_labor - _eng_overhead
+    _eng_margin = (_eng_ebitda / _eng_revenue * 100) if _eng_revenue else 0
+
+    _ee1, _ee2, _ee3, _ee4, _ee5 = st.columns(5)
+    kpi(_ee1, "Revenue",       fmt_dollar(_eng_revenue), f"{_eng_insp} inspectors × {_eng_wks} wks")
+    kpi(_ee2, "Direct Labor",  fmt_dollar(_eng_labor),   "fully loaded")
+    kpi(_ee3, "Overhead",      fmt_dollar(_eng_overhead), "prorated fixed + per-inspector")
+    kpi(_ee4, "EBITDA",        fmt_dollar(_eng_ebitda),  "what you keep")
+    kpi(_ee5, "EBITDA Margin", f"{_eng_margin:.1f}%",    "engagement profitability")
     st.divider()
 
-    # ── Risk callouts — shorter, plainer (no FCCR) ────────────────────────
-    _has_risks = n_loc or _peak_rng > _max_loc or _burden > 0.35
-    if _has_risks:
-        section("Things to Watch")
-        if _peak_rng > _max_loc:
-            st.error(
-                f"**You need more than your bank will lend.** Your peak borrowing "
-                f"({fmt_dollar(_peak_rng)}) exceeds your {fmt_dollar(_max_loc)} credit line. "
-                "Get a bigger credit line or hire slower."
-            )
-        elif n_loc:
-            st.warning(
-                f"**You hit your credit limit in {n_loc} week(s).** "
-                "Get a bigger credit line or hire slower."
-            )
-        if _burden > 0.35:
-            st.warning(
-                f"**Your employee costs (taxes, insurance, etc.) are high at {_burden:.0%}.** "
-                "That eats into profit."
-            )
+    # ════════════════════════════════════════════════════════════════════
+    # SECTION 3 — Cash Flow Timeline
+    # ════════════════════════════════════════════════════════════════════
+    section("Cash Flow Wave")
 
-    # ── The Bottom Line — 2 boxes, plain English ──────────────────────────
+    _wdf = weekly_df[weekly_df["inspectors"] > 0]
+    _avg_cash_out = float(_wdf["payroll_cash_out"].mean()) if len(_wdf) else 0
+    _avg_billing  = float(_wdf["revenue_wk"].mean()) if len(_wdf) else 0
+    _net_days     = int(a.get("net_days", 60))
+    _peak_draw    = float(weekly_df["loc_end"].max()) if len(weekly_df) else 0
+    _total_int    = float(weekly_df["interest_paid"].sum()) if len(weekly_df) else 0
+
+    # Break-even month — first month where cumulative EBITDA after interest > 0
+    mo_full_copy = mo_full.copy()
+    mo_full_copy["cum_ebitda"] = mo_full_copy["ebitda_after_interest"].cumsum()
+    _be_rows = mo_full_copy[mo_full_copy["cum_ebitda"] > 0]
+    _be_month = _be_rows.iloc[0]["period"] if len(_be_rows) else "Not in range"
+
+    _cf1, _cf2, _cf3 = st.columns(3)
+    kpi(_cf1, "Avg Weekly Cash Out", fmt_dollar(_avg_cash_out), "payroll + expenses")
+    kpi(_cf2, "Avg Weekly Billing",  fmt_dollar(_avg_billing),  "revenue accrued")
+    kpi(_cf3, "Payment Lag",         f"{_net_days} days",       "when clients pay you")
+
+    _cf4, _cf5, _cf6 = st.columns(3)
+    kpi(_cf4, "Peak Credit Draw",    fmt_dollar(_peak_draw),    "most you'll owe the bank")
+    kpi(_cf5, "Cost of Borrowing",   fmt_dollar(_total_int),    "total interest over plan")
+    # Highlighted break-even
+    _cf6.markdown(
+        f'<div class="kpi-card" style="border-left-color:#10B981;">'
+        f'<div class="kpi-label">Cash Flow Positive</div>'
+        f'<div class="kpi-value" style="color:#059669;">{_be_month}</div>'
+        f'<div class="kpi-sub">cumulative profit turns positive</div></div>',
+        unsafe_allow_html=True,
+    )
     st.divider()
-    section("The Bottom Line")
-    qa1, qa2 = st.columns(2)
-    with qa1:
-        if _ss_ebitda > 0:
-            st.markdown(
-                f'<div class="verdict-pass"><strong>Does it work?</strong> '
-                f"Yes — you'll make about {fmt_dollar(_ss_ebitda)}/month "
-                f"({fmt_dollar(_ss_annual)}/year) after all costs once it's running.</div>",
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                '<div class="verdict-fail"><strong>Does it work?</strong> '
-                "Not yet with these numbers. Try charging more per hour or hiring more people.</div>",
-                unsafe_allow_html=True,
-            )
-    with qa2:
-        st.markdown(
-            f'<div class="info-box"><strong>What money do you need?</strong> '
-            f"A {fmt_dollar(_max_loc)} credit line. The most you'll owe at any one time is "
-            f"{fmt_dollar(_peak_rng)} (around {_mo_peak_period}).</div>",
-            unsafe_allow_html=True,
-        )
+
+    # ════════════════════════════════════════════════════════════════════
+    # SECTION 4 — Growth Scenarios (200 / 350 / 500)
+    # ════════════════════════════════════════════════════════════════════
+    section("Growth Scenarios")
+    st.caption("Compare three scale paths — same economics, different headcount targets")
+
+    _growth_presets = {
+        "200 Inspectors": "25–200 Employees over 60 Months",
+        "350 Inspectors": "25–350 Employees over 60 Months",
+        "500 Inspectors": "25–500 Employees over 60 Months",
+    }
+
+    # Cache growth scenario results (invalidate when inputs change)
+    _current_hash = _hash_inputs()
+    if ("growth_scenario_cache" not in st.session_state
+            or st.session_state.get("growth_cache_hash") != _current_hash):
+        _cache = {}
+        for _lbl, _pname in _growth_presets.items():
+            _p = PRESETS[_pname]
+            _gw, _gm, _gq = run_model(_p["assumptions"], _p["headcount"])
+            _cache[_lbl] = {"mo": _gm, "assumptions": _p["assumptions"], "headcount": _p["headcount"]}
+        st.session_state.growth_scenario_cache = _cache
+        st.session_state.growth_cache_hash = _current_hash
+
+    _gcache = st.session_state.growth_scenario_cache
+
+    _scenario_choice = st.radio(
+        "Scale target",
+        list(_growth_presets.keys()),
+        horizontal=True,
+    )
+
+    _sc = _gcache[_scenario_choice]
+    _sc_mo = _sc["mo"]
+
+    # 60-month window (first 60 months)
+    _sc60 = _sc_mo[_sc_mo["month_idx"] <= 60]
+    _sc_cum_profit = float(_sc60["ebitda_after_interest"].sum())
+    _sc_avg_insp   = float(_sc60["inspectors_avg"].mean()) if len(_sc60) else 1
+    _sc_ebitda_pi  = _sc_cum_profit / _sc_avg_insp if _sc_avg_insp else 0
+    _sc_y5_rev     = float(_sc60[_sc60["month_idx"].between(49, 60)]["revenue"].sum()) if len(_sc60) else 0
+
+    _gs1, _gs2, _gs3 = st.columns(3)
+    kpi(_gs1, "60-Mo Cumulative Profit", fmt_dollar(_sc_cum_profit), "after interest")
+    kpi(_gs2, "EBITDA / Inspector",      fmt_dollar(_sc_ebitda_pi),  "avg over 60 months")
+    kpi(_gs3, "Year 5 Revenue",          fmt_dollar(_sc_y5_rev),     "months 49-60")
+
+    # Year-by-year table
+    _yr_data = []
+    for _yr in range(1, 6):
+        _yr_start = (_yr - 1) * 12 + 1
+        _yr_end   = _yr * 12
+        _yr_mo = _sc_mo[_sc_mo["month_idx"].between(_yr_start, _yr_end)]
+        if len(_yr_mo):
+            _yr_data.append({
+                "Year":       f"Y{_yr}",
+                "Revenue":    fmt_dollar(_yr_mo["revenue"].sum()),
+                "EBITDA":     fmt_dollar(_yr_mo["ebitda_after_interest"].sum()),
+                "Inspectors": f"{_yr_mo['inspectors_avg'].iloc[-1]:.0f}",
+            })
+    if _yr_data:
+        st.dataframe(pd.DataFrame(_yr_data), hide_index=True, use_container_width=True)
+
     # L1 view is complete — stop here so tab code below does not execute
     st.stop()
 
