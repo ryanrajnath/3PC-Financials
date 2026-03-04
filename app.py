@@ -1748,7 +1748,7 @@ with tab_inputs:
         st.rerun()
 
     month_labels = [f"M{i+1}" for i in range(120)]
-    lo_hc, hi_hc = st.select_slider("Show months", options=list(range(1, 121)), value=(1, 24), key="inp_hc_rng")
+    lo_hc, hi_hc = st.select_slider("Show months", options=list(range(1, 121)), value=(1, 60), key="inp_hc_rng")
     hc_prev = pd.DataFrame({"period": month_labels, "inspectors": hc}).iloc[lo_hc - 1:hi_hc]
     fig_hc_inp = px.bar(hc_prev, x="period", y="inspectors", template=TPL,
                         title="Inspectors Staffed per Month", color_discrete_sequence=[PC[0]])
@@ -2512,7 +2512,7 @@ with tab_detail:
         month_labels = [f"M{i+1}" for i in range(120)]
 
         section("Preview")
-        lo_hc, hi_hc = st.select_slider("Show months", options=list(range(1, 121)), value=(1, 24), key="hc_rng")
+        lo_hc, hi_hc = st.select_slider("Show months", options=list(range(1, 121)), value=(1, 60), key="hc_rng")
         hc_prev = pd.DataFrame({"period": month_labels, "inspectors": hc}).iloc[lo_hc - 1:hi_hc]
         fig_hc  = px.bar(hc_prev, x="period", y="inspectors", template=TPL,
                          title="Inspectors Staffed per Month", color_discrete_sequence=[PC[0]])
