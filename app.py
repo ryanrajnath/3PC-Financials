@@ -246,6 +246,47 @@ header { visibility: hidden; height: 0; }
 [data-testid="stDataFrame"] td {
     font-variant-numeric: tabular-nums !important;
 }
+/* ── William / Investor View ────────────────────────────────────────── */
+.william-kpi-card {
+    background: #FFFFFF;
+    border: none;
+    border-left: 4px solid #0EA5E9;
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+.william-kpi-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 8px;
+}
+.william-kpi-value {
+    font-size: 36px;
+    font-weight: 800;
+    color: #0F172A;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+}
+.william-kpi-sub {
+    font-size: 13px;
+    color: #94A3B8;
+    margin-top: 4px;
+}
+.william-section {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #64748B;
+    padding: 0.75rem 0 0.5rem 0;
+    margin-bottom: 1rem;
+    margin-top: 2rem;
+    border-bottom: 2px solid #E2E8F0;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -264,7 +305,7 @@ if "run_hash"       not in st.session_state: st.session_state.run_hash       = N
 if "run_ts"         not in st.session_state: st.session_state.run_ts         = None
 if "bootstrapped"   not in st.session_state: st.session_state.bootstrapped   = False
 if "preset_version" not in st.session_state: st.session_state.preset_version  = 0
-if "view_mode"      not in st.session_state: st.session_state.view_mode       = "Simple View"
+if "view_mode"      not in st.session_state: st.session_state.view_mode       = "Investor View"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -291,6 +332,17 @@ def kpi(col, label, value, sub=None):
 
 def section(label):
     st.markdown(f'<div class="sec-hdr">{label}</div>', unsafe_allow_html=True)
+
+def william_kpi(col, label, value, sub=None):
+    sub_h = f'<div class="william-kpi-sub">{sub}</div>' if sub else ""
+    col.markdown(
+        f'<div class="william-kpi-card"><div class="william-kpi-label">{label}</div>'
+        f'<div class="william-kpi-value">{value}</div>{sub_h}</div>',
+        unsafe_allow_html=True
+    )
+
+def william_section(label):
+    st.markdown(f'<div class="william-section">{label}</div>', unsafe_allow_html=True)
 
 # ── Valuation curve (EV/EBITDA multiples by size tier) ────────────────────
 # Calibrated from: UHY 2024, First Page Sage 2025, Raincatcher, Kroll M&A data
@@ -1021,11 +1073,11 @@ _vm_col, ctrl1, ctrl2, ctrl3 = st.columns([2, 3, 1, 2])
 with _vm_col:
     _vm = st.radio(
         "View",
-        ["Simple View", "Full Detail"],
-        index=0 if st.session_state.view_mode == "Simple View" else 1,
+        ["Investor View", "Full Detail"],
+        index=0 if st.session_state.view_mode == "Investor View" else 1,
         horizontal=True,
         label_visibility="collapsed",
-        help="Simple View: key numbers only. Full Detail: full model detail.",
+        help="Investor View: presentation mode. Full Detail: full model detail.",
     )
     st.session_state.view_mode = _vm
 with ctrl1:
@@ -1091,7 +1143,7 @@ if results_ready():
     st.caption(f"📅 Showing **{_rng_label}** across all tabs")
 
     # Determine view mode
-    _L1 = (st.session_state.view_mode == "Simple View")
+    _L1 = (st.session_state.view_mode == "Investor View")
 
     # Top-level KPI bar — scoped to selected range (hidden in L1 mode)
     if not _L1:
@@ -1112,182 +1164,465 @@ if results_ready():
 # ════════════════════════════════════════════════════════════════════════════
 # VIEW MODE GATE
 # ════════════════════════════════════════════════════════════════════════════
-_L1 = (st.session_state.view_mode == "Simple View")
+_L1 = (st.session_state.view_mode == "Investor View")
 
 if _L1:
-    # ── Simple View ────────────────────────────────────────────
+    # ── Investor View ─────────────────────────────────────────
     if not results_ready():
         st.markdown('<div class="info-box">Select a scenario above and click <b>Run</b> to generate results.</div>', unsafe_allow_html=True)
         st.stop()
 
-    weekly_df, mo_full, qdf_full = st.session_state.results
-    a = st.session_state.assumptions
-
-    # ════════════════════════════════════════════════════════════════════
-    # SECTION 1 — Unit Economics
-    # ════════════════════════════════════════════════════════════════════
-    section("Unit Economics")
-    _bill = float(a["st_bill_rate"])
-    _wage = float(a["inspector_wage"])
-    _burd = float(a.get("burden", 0.30))
-    _loaded = _wage * (1 + _burd)
-    _gp_hr = _bill - _loaded
-    _gm_pct = (_gp_hr / _bill * 100) if _bill else 0
-
-    _ue1, _ue2, _ue3, _ue4 = st.columns(4)
-    kpi(_ue1, "Bill Rate / Hr",        fmt_dollar(_bill),   "what the client pays")
-    kpi(_ue2, "Loaded Labor Cost / Hr", fmt_dollar(_loaded), f"wage + {_burd:.0%} burden")
-    kpi(_ue3, "Gross Profit / Hr",     fmt_dollar(_gp_hr),  "before overhead")
-    kpi(_ue4, "Gross Margin %",        f"{_gm_pct:.1f}%",   "per billable hour")
-    st.divider()
-
-    # ════════════════════════════════════════════════════════════════════
-    # SECTION 2 — Engagement Economics (8-week / 25-inspector job)
-    # ════════════════════════════════════════════════════════════════════
-    section("What One Engagement Produces")
-    st.caption("Based on a typical 8-week deployment with 25 inspectors")
-
-    _eng_wks  = 8
-    _eng_insp = 25
-    _st_hrs   = float(a.get("st_hours", 40))
-    _ot_hrs   = float(a.get("ot_hours", 10))
-    _lead_ratio = int(a.get("team_lead_ratio", 12))
-    _n_leads  = ceil(_eng_insp / _lead_ratio)
-    _lead_wage = float(a.get("lead_wage", 25.0))
-    _lead_st   = float(a.get("lead_st_hours", 40))
-    _lead_ot   = float(a.get("lead_ot_hours", 10))
-    _ot_pay_mult = float(a.get("ot_pay_multiplier", 1.5))
-    _ot_bill_prem = float(a.get("ot_bill_premium", 1.5))
-    _lead_bill_prem = float(a.get("lead_bill_premium", 1.0))
-
-    # Revenue per week
-    _insp_rev_wk = _eng_insp * (_st_hrs * _bill + _ot_hrs * _bill * _ot_bill_prem)
-    _lead_bill = _bill * _lead_bill_prem
-    _lead_rev_wk = _n_leads * (_lead_st * _lead_bill + _lead_ot * _lead_bill * _ot_bill_prem)
-    _eng_revenue = (_insp_rev_wk + _lead_rev_wk) * _eng_wks
-
-    # Labor per week
-    _insp_labor_wk = _eng_insp * (_st_hrs * _loaded + _ot_hrs * _wage * _ot_pay_mult * (1 + _burd))
-    _lead_loaded = _lead_wage * (1 + _burd)
-    _lead_labor_wk = _n_leads * (_lead_st * _lead_loaded + _lead_ot * _lead_wage * _ot_pay_mult * (1 + _burd))
-    _eng_labor = (_insp_labor_wk + _lead_labor_wk) * _eng_wks
-
-    # Overhead prorated
-    _fixed_mo = sum(float(a.get(k, 0)) for k in ("software_monthly", "recruiting_monthly", "insurance_monthly", "travel_monthly"))
-    _pi_mo = sum(float(a.get(k, 0)) for k in ("software_per_inspector", "insurance_per_inspector", "travel_per_inspector", "recruiting_per_inspector"))
-    _eng_overhead = (_fixed_mo + _pi_mo * _eng_insp) * (_eng_wks / 4.33)
-
-    _eng_ebitda = _eng_revenue - _eng_labor - _eng_overhead
-    _eng_margin = (_eng_ebitda / _eng_revenue * 100) if _eng_revenue else 0
-
-    _ee1, _ee2, _ee3, _ee4, _ee5 = st.columns(5)
-    kpi(_ee1, "Revenue",       fmt_dollar(_eng_revenue), f"{_eng_insp} inspectors × {_eng_wks} wks")
-    kpi(_ee2, "Direct Labor",  fmt_dollar(_eng_labor),   "fully loaded")
-    kpi(_ee3, "Overhead",      fmt_dollar(_eng_overhead), "prorated fixed + per-inspector")
-    kpi(_ee4, "EBITDA",        fmt_dollar(_eng_ebitda),  "what you keep")
-    kpi(_ee5, "EBITDA Margin", f"{_eng_margin:.1f}%",    "engagement profitability")
-    st.divider()
-
-    # ════════════════════════════════════════════════════════════════════
-    # SECTION 3 — Cash Flow Timeline
-    # ════════════════════════════════════════════════════════════════════
-    section("Cash Flow Wave")
-
-    _wdf = weekly_df[weekly_df["inspectors"] > 0]
-    _avg_cash_out = float(_wdf["payroll_cash_out"].mean()) if len(_wdf) else 0
-    _avg_billing  = float(_wdf["revenue_wk"].mean()) if len(_wdf) else 0
-    _net_days     = int(a.get("net_days", 60))
-    _peak_draw    = float(weekly_df["loc_end"].max()) if len(weekly_df) else 0
-    _total_int    = float(weekly_df["interest_paid"].sum()) if len(weekly_df) else 0
-
-    # Break-even month — first month where cumulative EBITDA after interest > 0
-    mo_full_copy = mo_full.copy()
-    mo_full_copy["cum_ebitda"] = mo_full_copy["ebitda_after_interest"].cumsum()
-    _be_rows = mo_full_copy[mo_full_copy["cum_ebitda"] > 0]
-    _be_month = _be_rows.iloc[0]["period"] if len(_be_rows) else "Not in range"
-
-    _cf1, _cf2, _cf3 = st.columns(3)
-    kpi(_cf1, "Avg Weekly Cash Out", fmt_dollar(_avg_cash_out), "payroll + expenses")
-    kpi(_cf2, "Avg Weekly Billing",  fmt_dollar(_avg_billing),  "revenue accrued")
-    kpi(_cf3, "Payment Lag",         f"{_net_days} days",       "when clients pay you")
-
-    _cf4, _cf5, _cf6 = st.columns(3)
-    kpi(_cf4, "Peak Credit Draw",    fmt_dollar(_peak_draw),    "most you'll owe the bank")
-    kpi(_cf5, "Cost of Borrowing",   fmt_dollar(_total_int),    "total interest over plan")
-    # Highlighted break-even
-    _cf6.markdown(
-        f'<div class="kpi-card" style="border-left-color:#10B981;">'
-        f'<div class="kpi-label">Cash Flow Positive</div>'
-        f'<div class="kpi-value" style="color:#059669;">{_be_month}</div>'
-        f'<div class="kpi-sub">cumulative profit turns positive</div></div>',
+    st.markdown(
+        '<div style="text-align:center; margin-bottom:1.5rem;">'
+        '<span style="font-size:24px; font-weight:800; color:#0F172A; letter-spacing:-0.3px;">'
+        'OpSource Containment Division &mdash; Investor Model</span></div>',
         unsafe_allow_html=True,
     )
-    st.divider()
 
-    # ════════════════════════════════════════════════════════════════════
-    # SECTION 4 — Growth Scenarios (200 / 350 / 500)
-    # ════════════════════════════════════════════════════════════════════
-    section("Growth Scenarios")
-    st.caption("Compare three scale paths — same economics, different headcount targets")
-
-    _growth_presets = {
+    # ── Preset selector (3 radio buttons) ──────────────────────────────
+    _inv_presets = {
         "200 Inspectors": "25–200 Employees over 60 Months",
         "350 Inspectors": "25–350 Employees over 60 Months",
         "500 Inspectors": "25–500 Employees over 60 Months",
     }
 
-    # Cache growth scenario results (invalidate when inputs change)
-    _current_hash = _hash_inputs()
-    if ("growth_scenario_cache" not in st.session_state
-            or st.session_state.get("growth_cache_hash") != _current_hash):
-        _cache = {}
-        for _lbl, _pname in _growth_presets.items():
-            _p = PRESETS[_pname]
-            _gw, _gm, _gq = run_model(_p["assumptions"], _p["headcount"])
-            _cache[_lbl] = {"mo": _gm, "assumptions": _p["assumptions"], "headcount": _p["headcount"]}
-        st.session_state.growth_scenario_cache = _cache
-        st.session_state.growth_cache_hash = _current_hash
-
-    _gcache = st.session_state.growth_scenario_cache
-
-    _scenario_choice = st.radio(
-        "Scale target",
-        list(_growth_presets.keys()),
+    _inv_choice = st.radio(
+        "Growth Scenario",
+        list(_inv_presets.keys()),
         horizontal=True,
+        label_visibility="collapsed",
     )
 
-    _sc = _gcache[_scenario_choice]
-    _sc_mo = _sc["mo"]
+    # Load and run the selected preset
+    _inv_preset_name = _inv_presets[_inv_choice]
+    _inv_p = PRESETS[_inv_preset_name]
 
-    # 60-month window (first 60 months)
-    _sc60 = _sc_mo[_sc_mo["month_idx"] <= 60]
-    _sc_cum_profit = float(_sc60["ebitda_after_interest"].sum())
-    _sc_avg_insp   = float(_sc60["inspectors_avg"].mean()) if len(_sc60) else 1
-    _sc_ebitda_pi  = _sc_cum_profit / _sc_avg_insp if _sc_avg_insp else 0
-    _sc_y5_rev     = float(_sc60[_sc60["month_idx"].between(49, 60)]["revenue"].sum()) if len(_sc60) else 0
+    # Check if we need to re-run (different preset selected)
+    if st.session_state.get("_inv_active") != _inv_choice:
+        st.session_state.assumptions = _inv_p["assumptions"].copy()
+        st.session_state.headcount_plan = _inv_p["headcount"].copy()
+        st.session_state.active_preset = _inv_preset_name
+        st.session_state.preset_assumptions = _inv_p["assumptions"].copy()
+        st.session_state._inv_active = _inv_choice
+        run_and_store()
 
-    _gs1, _gs2, _gs3 = st.columns(3)
-    kpi(_gs1, "60-Mo Cumulative Profit", fmt_dollar(_sc_cum_profit), "after interest")
-    kpi(_gs2, "EBITDA / Inspector",      fmt_dollar(_sc_ebitda_pi),  "avg over 60 months")
-    kpi(_gs3, "Year 5 Revenue",          fmt_dollar(_sc_y5_rev),     "months 49-60")
+    if not results_ready():
+        st.stop()
 
-    # Year-by-year table
-    _yr_data = []
-    for _yr in range(1, 6):
-        _yr_start = (_yr - 1) * 12 + 1
-        _yr_end   = _yr * 12
-        _yr_mo = _sc_mo[_sc_mo["month_idx"].between(_yr_start, _yr_end)]
-        if len(_yr_mo):
-            _yr_data.append({
-                "Year":       f"Y{_yr}",
-                "Revenue":    fmt_dollar(_yr_mo["revenue"].sum()),
-                "EBITDA":     fmt_dollar(_yr_mo["ebitda_after_interest"].sum()),
-                "Inspectors": f"{_yr_mo['inspectors_avg'].iloc[-1]:.0f}",
+    weekly_df, mo_full, qdf_full = st.session_state.results
+    a = st.session_state.assumptions
+
+    # Force full 60-month range
+    _inv_months = min(60, len(mo_full))
+    mo60 = mo_full[mo_full["month_idx"] < _inv_months].copy()
+
+    # ── Key computations ───────────────────────────────────────────────
+    mo60["cum_ebitda"] = mo60["ebitda_after_interest"].cumsum()
+
+    # Peak credit
+    _peak_loc = float(mo60["loc_end"].max())
+    _peak_loc_month = mo60.loc[mo60["loc_end"].idxmax(), "period"] if _peak_loc > 0 else "—"
+
+    # Monthly profit at steady state (last 12 months)
+    _ss_months = mo60.tail(12)
+    _ss_monthly_profit = float(_ss_months["ebitda_after_interest"].mean())
+
+    # Payback month (cumulative EBITDA > 0)
+    _payback_rows = mo60[mo60["cum_ebitda"] > 0]
+    _payback_month = _payback_rows.iloc[0]["period"] if len(_payback_rows) else "Not reached"
+
+    # 5-year total profit
+    _total_profit_5yr = float(mo60["ebitda_after_interest"].sum())
+
+    # Return multiple
+    _return_x = abs(_total_profit_5yr / _peak_loc) if _peak_loc > 0 else 0
+
+    # CF positive month (first month ebitda_after_interest > 0)
+    _cf_pos_rows = mo60[mo60["ebitda_after_interest"] > 0]
+    _cf_pos_month = _cf_pos_rows.iloc[0]["period"] if len(_cf_pos_rows) else "Not reached"
+
+    # Line-free month (LOC balance drops to 0 after peak)
+    _peak_loc_idx = mo60["loc_end"].idxmax()
+    _post_peak = mo60.loc[_peak_loc_idx:]
+    _line_free_rows = _post_peak[_post_peak["loc_end"] <= 0.01]
+    _line_free_month = _line_free_rows.iloc[0]["period"] if len(_line_free_rows) else "Not reached"
+
+    # Total interest
+    _total_interest = float(mo60["interest"].sum())
+    _total_revenue = float(mo60["revenue"].sum())
+    _cost_of_money_pct = (_total_interest / _total_revenue * 100) if _total_revenue > 0 else 0
+
+    # ════════════════════════════════════════════════════════════════════
+    # SECTION A — Executive Summary
+    # ════════════════════════════════════════════════════════════════════
+    william_section("A. Executive Summary")
+
+    # Verdict banner
+    if _payback_month != "Not reached" and _total_profit_5yr > 0:
+        _verdict_class = "verdict-pass"
+        _verdict_text = (
+            f"This scenario needs <b>{fmt_dollar(_peak_loc)}</b> in peak credit, "
+            f"turns cash-flow positive at <b>{_cf_pos_month}</b>, "
+            f"generates <b>{fmt_dollar(_ss_monthly_profit)}/mo</b> at full speed &mdash; "
+            f"a <b>{_return_x:.1f}x</b> return on peak capital over 5 years."
+        )
+    elif _total_profit_5yr > 0:
+        _verdict_class = "verdict-warn"
+        _verdict_text = (
+            f"This scenario generates <b>{fmt_dollar(_total_profit_5yr)}</b> over 5 years "
+            f"but requires <b>{fmt_dollar(_peak_loc)}</b> in peak credit. "
+            f"Cumulative payback not yet reached within 60 months."
+        )
+    else:
+        _verdict_class = "verdict-fail"
+        _verdict_text = (
+            f"This scenario loses <b>{fmt_dollar(abs(_total_profit_5yr))}</b> over 5 years "
+            f"and requires <b>{fmt_dollar(_peak_loc)}</b> in peak credit."
+        )
+    st.markdown(f'<div class="{_verdict_class}">{_verdict_text}</div>', unsafe_allow_html=True)
+
+    # 4 large KPIs
+    _ka1, _ka2, _ka3, _ka4 = st.columns(4)
+    william_kpi(_ka1, "Peak Credit Needed", fmt_dollar(_peak_loc), _peak_loc_month)
+    william_kpi(_ka2, "Monthly Profit at Scale", fmt_dollar(_ss_monthly_profit), "avg last 12 months")
+    william_kpi(_ka3, "Payback Month", _payback_month, "cumulative profit > $0")
+    william_kpi(_ka4, "5-Year Total Profit", fmt_dollar(_total_profit_5yr), f"{_return_x:.1f}x return on capital")
+
+    # ════════════════════════════════════════════════════════════════════
+    # SECTION B — Monthly Cash-Flow Waterfall (first 24 months)
+    # ════════════════════════════════════════════════════════════════════
+    william_section("B. Monthly Cash-Flow Waterfall")
+    st.caption("First 24 months — where the money goes")
+
+    mo24 = mo60[mo60["month_idx"] < 24].copy()
+
+    fig_wf = go.Figure()
+
+    # Green bars — collections in
+    fig_wf.add_trace(go.Bar(
+        x=mo24["period"], y=mo24["collections"], name="Collections In",
+        marker_color="#10B981",
+    ))
+    # Red stacked bars — costs out
+    fig_wf.add_trace(go.Bar(
+        x=mo24["period"], y=-mo24["hourly_labor"], name="Payroll",
+        marker_color="#EF4444",
+    ))
+    fig_wf.add_trace(go.Bar(
+        x=mo24["period"], y=-mo24["salaried_cost"], name="Management",
+        marker_color="#F59E0B",
+    ))
+    fig_wf.add_trace(go.Bar(
+        x=mo24["period"], y=-mo24["overhead"], name="Overhead",
+        marker_color="#F97316",
+    ))
+    fig_wf.add_trace(go.Bar(
+        x=mo24["period"], y=-mo24["interest"], name="Interest",
+        marker_color="#8B5CF6",
+    ))
+    # Lines
+    fig_wf.add_trace(go.Scatter(
+        x=mo24["period"], y=mo24["cash_end"], name="Cash Balance",
+        mode="lines+markers", line=dict(color="#0EA5E9", width=3),
+        marker=dict(size=5),
+    ))
+    fig_wf.add_trace(go.Scatter(
+        x=mo24["period"], y=mo24["loc_end"], name="LOC Balance",
+        mode="lines+markers", line=dict(color="#F59E0B", width=3, dash="dot"),
+        marker=dict(size=5),
+    ))
+
+    fig_wf.update_layout(
+        template=TPL, barmode="relative", height=400,
+        margin=dict(l=10, r=10, t=10, b=60),
+        legend=dict(orientation="h", y=1.10, x=0, yanchor="bottom", font=dict(size=13)),
+        plot_bgcolor="#FAFBFC", paper_bgcolor="rgba(0,0,0,0)",
+        yaxis=dict(tickformat="$,.0f", gridcolor="#E2E8F0", tickfont=dict(size=13),
+                   zeroline=True, zerolinecolor="#CBD5E1", zerolinewidth=1),
+        xaxis=dict(showgrid=False, tickfont=dict(size=13)),
+        hoverlabel=dict(bgcolor="#1E293B", font_color="white", font_size=13),
+    )
+    fig_wf.add_hline(y=0, line_color="#CBD5E1", line_width=1)
+    st.plotly_chart(fig_wf, use_container_width=True, config=_CHART_CONFIG)
+
+    # Monthly table
+    with st.expander("Monthly Cash Flow Detail", expanded=False):
+        _wf_tbl = mo24[["period", "collections", "hourly_labor", "salaried_cost",
+                         "overhead", "interest", "loc_draw", "loc_repay", "loc_end", "cash_end"]].copy()
+        _wf_tbl.columns = ["Month", "Collections", "Payroll", "Mgmt", "Overhead",
+                           "Interest", "LOC Draw", "LOC Repay", "LOC Balance", "Cash End"]
+        _dollar_cols_wf = ["Collections", "Payroll", "Mgmt", "Overhead", "Interest",
+                           "LOC Draw", "LOC Repay", "LOC Balance", "Cash End"]
+        _fmt_wf = {c: "${:,.0f}" for c in _dollar_cols_wf}
+        st.dataframe(_wf_tbl.style.format(_fmt_wf), use_container_width=True, height=400, hide_index=True)
+
+    # ════════════════════════════════════════════════════════════════════
+    # SECTION C — Peak Line Draw & Cost of Money
+    # ════════════════════════════════════════════════════════════════════
+    william_section("C. Peak Line Draw & Cost of Money")
+
+    # Build downside scenario: $1M cap, 5% APR, 6-month delayed ramp
+    _ds_cache_key = f"william_downside_{_inv_choice}"
+    if _ds_cache_key not in st.session_state:
+        _ds_assumptions = _inv_p["assumptions"].copy()
+        _ds_assumptions["max_loc"] = 1_000_000
+        _ds_assumptions["apr"] = 0.05
+        # Shift headcount 6 months later
+        _ds_hc = [0] * 6 + _inv_p["headcount"][:114]
+        _ds_w, _ds_m, _ds_q = run_model(_ds_assumptions, _ds_hc)
+        st.session_state[_ds_cache_key] = _ds_m
+
+    _ds_mo = st.session_state[_ds_cache_key]
+    _ds60 = _ds_mo[_ds_mo["month_idx"] < _inv_months].copy()
+
+    # Downside metrics
+    _ds_peak_loc = float(_ds60["loc_end"].max())
+    _ds_peak_loc_month = _ds60.loc[_ds60["loc_end"].idxmax(), "period"] if _ds_peak_loc > 0 else "—"
+    _ds_total_interest = float(_ds60["interest"].sum())
+    _ds_total_revenue = float(_ds60["revenue"].sum())
+    _ds_cost_pct = (_ds_total_interest / _ds_total_revenue * 100) if _ds_total_revenue > 0 else 0
+
+    # Weeks from peak to fully repaid (downside)
+    _ds_peak_idx = _ds60["loc_end"].idxmax()
+    _ds_post_peak = _ds60.loc[_ds_peak_idx:]
+    _ds_line_free = _ds_post_peak[_ds_post_peak["loc_end"] <= 0.01]
+    _ds_repaid_month = _ds_line_free.iloc[0]["period"] if len(_ds_line_free) else "Not repaid"
+    _ds_months_to_repay = (int(_ds_line_free.iloc[0]["month_idx"]) - int(_ds60.loc[_ds_peak_idx, "month_idx"])) if len(_ds_line_free) else "N/A"
+
+    # Base scenario months to repay
+    _base_months_to_repay = (int(_line_free_rows.iloc[0]["month_idx"]) - int(mo60.loc[_peak_loc_idx, "month_idx"])) if len(_line_free_rows) else "N/A"
+
+    _cc_left, _cc_right = st.columns(2)
+
+    with _cc_left:
+        st.markdown("**Base Scenario**")
+        _cl1, _cl2 = st.columns(2)
+        william_kpi(_cl1, "Peak Draw", fmt_dollar(_peak_loc), _peak_loc_month)
+        william_kpi(_cl2, "Total Interest", fmt_dollar(_total_interest), f"{_cost_of_money_pct:.2f}% of revenue")
+        _cl3, _cl4 = st.columns(2)
+        william_kpi(_cl3, "Line Repaid", _line_free_month, f"{_base_months_to_repay} mo after peak" if _base_months_to_repay != "N/A" else "")
+        william_kpi(_cl4, "Cost of Money", f"{_cost_of_money_pct:.2f}%", "as % of total revenue")
+
+    with _cc_right:
+        st.markdown("**Downside** ($1M cap, 5% APR, 6-mo delayed start)")
+        _cr1, _cr2 = st.columns(2)
+        william_kpi(_cr1, "Peak Draw", fmt_dollar(_ds_peak_loc), _ds_peak_loc_month)
+        william_kpi(_cr2, "Total Interest", fmt_dollar(_ds_total_interest), f"{_ds_cost_pct:.2f}% of revenue")
+        _cr3, _cr4 = st.columns(2)
+        william_kpi(_cr3, "Line Repaid", _ds_repaid_month, f"{_ds_months_to_repay} mo after peak" if _ds_months_to_repay != "N/A" else "")
+        william_kpi(_cr4, "Cost of Money", f"{_ds_cost_pct:.2f}%", "as % of total revenue")
+
+    # LOC balance comparison chart
+    fig_loc_comp = go.Figure()
+    fig_loc_comp.add_trace(go.Scatter(
+        x=mo60["period"], y=mo60["loc_end"], name="Base Scenario",
+        line=dict(color=PC[0], width=3),
+    ))
+    fig_loc_comp.add_trace(go.Scatter(
+        x=_ds60["period"], y=_ds60["loc_end"], name="Downside",
+        line=dict(color=PC[3], width=3, dash="dash"),
+    ))
+    fig_loc_comp.add_hline(y=1_000_000, line_dash="dot", line_color="#EF4444",
+                           annotation_text="$1M Cap", annotation_font=dict(color="#EF4444", size=13))
+    fig_loc_comp.update_layout(
+        template=TPL, height=400,
+        title=dict(text="Line of Credit Balance — Base vs Downside", font=dict(size=16, color="#334155"), x=0),
+        margin=dict(l=10, r=10, t=50, b=60),
+        legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom", font=dict(size=13)),
+        plot_bgcolor="#FAFBFC", paper_bgcolor="rgba(0,0,0,0)",
+        yaxis=dict(tickformat="$,.0f", gridcolor="#E2E8F0", tickfont=dict(size=13)),
+        xaxis=dict(showgrid=False, tickfont=dict(size=13)),
+        hoverlabel=dict(bgcolor="#1E293B", font_color="white", font_size=13),
+    )
+    st.plotly_chart(fig_loc_comp, use_container_width=True, config=_CHART_CONFIG)
+
+    # ════════════════════════════════════════════════════════════════════
+    # SECTION D — Per-Inspector Contribution Margin
+    # ════════════════════════════════════════════════════════════════════
+    william_section("D. Per-Inspector Contribution Margin")
+
+    # Steady state: average from months 48-59
+    _ss_range = mo60[(mo60["month_idx"] >= 48) & (mo60["month_idx"] < 60)]
+    if len(_ss_range) and _ss_range["inspectors_avg"].mean() > 0:
+        _ss_insp = _ss_range["inspectors_avg"].mean()
+        _ss_rev_pi = _ss_range["revenue"].mean() / _ss_insp
+        _ss_labor_pi = _ss_range["hourly_labor"].mean() / _ss_insp
+        _ss_gp_pi = _ss_rev_pi - _ss_labor_pi
+        _ss_overhead_pi = _ss_range["overhead"].mean() / _ss_insp
+        _ss_mgmt_pi = _ss_range["salaried_cost"].mean() / _ss_insp
+        _ss_cm_pi = _ss_gp_pi - _ss_overhead_pi - _ss_mgmt_pi
+    else:
+        # Fallback to last 12 months
+        _ss_insp = _ss_months["inspectors_avg"].mean() if _ss_months["inspectors_avg"].mean() > 0 else 1
+        _ss_rev_pi = _ss_months["revenue"].mean() / _ss_insp
+        _ss_labor_pi = _ss_months["hourly_labor"].mean() / _ss_insp
+        _ss_gp_pi = _ss_rev_pi - _ss_labor_pi
+        _ss_overhead_pi = _ss_months["overhead"].mean() / _ss_insp
+        _ss_mgmt_pi = _ss_months["salaried_cost"].mean() / _ss_insp
+        _ss_cm_pi = _ss_gp_pi - _ss_overhead_pi - _ss_mgmt_pi
+
+    # Unit P&L table
+    _unit_pl = pd.DataFrame({
+        "Item": ["Revenue", "Direct Labor", "Gross Profit", "Overhead Allocation", "Mgmt Allocation", "Contribution Margin"],
+        "Per Inspector / Month": [
+            f"${_ss_rev_pi:,.0f}",
+            f"${_ss_labor_pi:,.0f}",
+            f"${_ss_gp_pi:,.0f}",
+            f"${_ss_overhead_pi:,.0f}",
+            f"${_ss_mgmt_pi:,.0f}",
+            f"${_ss_cm_pi:,.0f}",
+        ],
+        "% of Revenue": [
+            "100.0%",
+            f"{(_ss_labor_pi/_ss_rev_pi*100) if _ss_rev_pi else 0:.1f}%",
+            f"{(_ss_gp_pi/_ss_rev_pi*100) if _ss_rev_pi else 0:.1f}%",
+            f"{(_ss_overhead_pi/_ss_rev_pi*100) if _ss_rev_pi else 0:.1f}%",
+            f"{(_ss_mgmt_pi/_ss_rev_pi*100) if _ss_rev_pi else 0:.1f}%",
+            f"{(_ss_cm_pi/_ss_rev_pi*100) if _ss_rev_pi else 0:.1f}%",
+        ],
+    })
+    st.dataframe(_unit_pl, use_container_width=True, hide_index=True, height=250)
+
+    # Scaling chart — 3 lines showing total monthly contribution
+    _scaling_data = []
+    for _sc_label, _sc_pname in _inv_presets.items():
+        _sc_p = PRESETS[_sc_pname]
+        _sc_cache_key = f"william_scale_{_sc_label}"
+        if _sc_cache_key not in st.session_state:
+            _sc_w, _sc_m, _sc_q = run_model(_sc_p["assumptions"], _sc_p["headcount"])
+            st.session_state[_sc_cache_key] = _sc_m
+        _sc_mo = st.session_state[_sc_cache_key]
+        _sc60 = _sc_mo[_sc_mo["month_idx"] < 60].copy()
+        # Total contribution = revenue - hourly_labor - overhead - salaried_cost
+        _sc60_contrib = _sc60["revenue"] - _sc60["hourly_labor"] - _sc60["overhead"] - _sc60["salaried_cost"]
+        for _, row in _sc60.iterrows():
+            _scaling_data.append({
+                "period": row["period"],
+                "month_idx": row["month_idx"],
+                "Scenario": _sc_label,
+                "contribution": row["revenue"] - row["hourly_labor"] - row["overhead"] - row["salaried_cost"],
             })
-    if _yr_data:
-        st.dataframe(pd.DataFrame(_yr_data), hide_index=True, use_container_width=True)
 
-    # L1 view is complete — stop here so tab code below does not execute
+    _scale_df = pd.DataFrame(_scaling_data)
+    fig_scale = go.Figure()
+    _scale_colors = {"200 Inspectors": PC[0], "350 Inspectors": PC[1], "500 Inspectors": PC[2]}
+    for _sc_name in _inv_presets.keys():
+        _sc_sub = _scale_df[_scale_df["Scenario"] == _sc_name]
+        fig_scale.add_trace(go.Scatter(
+            x=_sc_sub["period"], y=_sc_sub["contribution"], name=_sc_name,
+            mode="lines", line=dict(color=_scale_colors[_sc_name], width=3),
+        ))
+    fig_scale.update_layout(
+        template=TPL, height=400,
+        title=dict(text="Monthly Contribution Margin by Scale", font=dict(size=16, color="#334155"), x=0),
+        margin=dict(l=10, r=10, t=50, b=60),
+        legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom", font=dict(size=13)),
+        plot_bgcolor="#FAFBFC", paper_bgcolor="rgba(0,0,0,0)",
+        yaxis=dict(tickformat="$,.0f", gridcolor="#E2E8F0", tickfont=dict(size=13)),
+        xaxis=dict(showgrid=False, tickfont=dict(size=13)),
+        hoverlabel=dict(bgcolor="#1E293B", font_color="white", font_size=13),
+    )
+    fig_scale.add_hline(y=0, line_color="#CBD5E1", line_width=1)
+    st.plotly_chart(fig_scale, use_container_width=True, config=_CHART_CONFIG)
+
+    # ════════════════════════════════════════════════════════════════════
+    # SECTION E — Break-Even Chart
+    # ════════════════════════════════════════════════════════════════════
+    william_section("E. Break-Even & J-Curve")
+
+    # J-curve chart with cumulative net cash flow + LOC balance overlay
+    fig_jcurve = go.Figure()
+
+    # Cumulative EBITDA after interest
+    fig_jcurve.add_trace(go.Scatter(
+        x=mo60["period"], y=mo60["cum_ebitda"], name="Cumulative Net Profit",
+        mode="lines", line=dict(color=PC[0], width=3),
+        fill="tozeroy",
+        fillcolor="rgba(14,165,233,0.08)",
+    ))
+    # LOC balance
+    fig_jcurve.add_trace(go.Scatter(
+        x=mo60["period"], y=mo60["loc_end"], name="LOC Balance",
+        mode="lines", line=dict(color=PC[3], width=2, dash="dash"),
+    ))
+
+    # Vertical markers
+    if _cf_pos_month != "Not reached":
+        fig_jcurve.add_vline(x=_cf_pos_month, line_dash="dot", line_color="#10B981", line_width=2,
+                             annotation_text=f"CF Positive ({_cf_pos_month})",
+                             annotation_font=dict(color="#10B981", size=13),
+                             annotation_position="top left")
+    if _line_free_month != "Not reached":
+        fig_jcurve.add_vline(x=_line_free_month, line_dash="dot", line_color="#F59E0B", line_width=2,
+                             annotation_text=f"Line Repaid ({_line_free_month})",
+                             annotation_font=dict(color="#F59E0B", size=13),
+                             annotation_position="top right")
+
+    fig_jcurve.add_hline(y=0, line_color="#CBD5E1", line_width=1)
+    fig_jcurve.update_layout(
+        template=TPL, height=400,
+        title=dict(text="J-Curve: Cumulative Profit & Line of Credit", font=dict(size=16, color="#334155"), x=0),
+        margin=dict(l=10, r=10, t=50, b=60),
+        legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom", font=dict(size=13)),
+        plot_bgcolor="#FAFBFC", paper_bgcolor="rgba(0,0,0,0)",
+        yaxis=dict(tickformat="$,.0f", gridcolor="#E2E8F0", tickfont=dict(size=13)),
+        xaxis=dict(showgrid=False, tickfont=dict(size=13)),
+        hoverlabel=dict(bgcolor="#1E293B", font_color="white", font_size=13),
+    )
+    st.plotly_chart(fig_jcurve, use_container_width=True, config=_CHART_CONFIG)
+
+    # 3-scenario comparison table
+    _comp_rows = []
+    for _comp_label, _comp_pname in _inv_presets.items():
+        _comp_cache_key = f"william_scale_{_comp_label}"
+        _comp_mo = st.session_state[_comp_cache_key]
+        _comp60 = _comp_mo[_comp_mo["month_idx"] < 60].copy()
+        _comp60["cum_ebitda"] = _comp60["ebitda_after_interest"].cumsum()
+
+        _comp_peak = float(_comp60["loc_end"].max())
+        _comp_cf_rows = _comp60[_comp60["ebitda_after_interest"] > 0]
+        _comp_cf_mo = _comp_cf_rows.iloc[0]["period"] if len(_comp_cf_rows) else "—"
+
+        _comp_peak_idx = _comp60["loc_end"].idxmax()
+        _comp_post = _comp60.loc[_comp_peak_idx:]
+        _comp_repaid = _comp_post[_comp_post["loc_end"] <= 0.01]
+        _comp_repaid_mo = _comp_repaid.iloc[0]["period"] if len(_comp_repaid) else "—"
+
+        _comp_5yr = float(_comp60["ebitda_after_interest"].sum())
+        _comp_ss = float(_comp60.tail(12)["ebitda_after_interest"].mean())
+        _comp_roc = abs(_comp_5yr / _comp_peak) if _comp_peak > 0 else 0
+
+        _comp_rows.append({
+            "Scenario": _comp_label,
+            "Peak Credit": fmt_dollar(_comp_peak),
+            "CF Positive": _comp_cf_mo,
+            "Line Repaid": _comp_repaid_mo,
+            "5-Yr Profit": fmt_dollar(_comp_5yr),
+            "Monthly Profit (Steady)": fmt_dollar(_comp_ss),
+            "Return on Capital": f"{_comp_roc:.1f}x",
+        })
+
+    st.dataframe(pd.DataFrame(_comp_rows), use_container_width=True, hide_index=True)
+
+    # ════════════════════════════════════════════════════════════════════
+    # SECTION F — Deep Dive Access
+    # ════════════════════════════════════════════════════════════════════
+    william_section("F. Deep Dive")
+
+    with st.expander("Access Full Detail Mode & Export"):
+        st.markdown(
+            "Switch to **Full Detail** mode (top of page) for granular weekly data, "
+            "assumption editing, sensitivity analysis, and full financial statements."
+        )
+        if results_ready():
+            wdf_exp, mdf_exp, qdf_exp = st.session_state.results
+            xls = build_excel(wdf_exp, mdf_exp, qdf_exp, st.session_state.assumptions,
+                              st.session_state.headcount_plan)
+            st.download_button("Download Excel Export", data=xls,
+                               file_name="opsource_investor_model.xlsx",
+                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                               type="primary")
+
     st.stop()
 
 # ════════════════════════════════════════════════════════════════════════════
