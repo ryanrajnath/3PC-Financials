@@ -1069,83 +1069,99 @@ def _on_preset_change():
         run_and_store()
 
 # ── View mode toggle + controls ────────────────────────────────────────────
-_vm_col, ctrl1, ctrl2, ctrl3 = st.columns([2, 3, 1, 2])
-with _vm_col:
+_is_investor = st.session_state.view_mode == "Investor View"
+
+if _is_investor:
+    # Investor View: just the view toggle, no preset/run controls
     _vm = st.radio(
         "View",
         ["Investor View", "Full Detail"],
-        index=0 if st.session_state.view_mode == "Investor View" else 1,
+        index=0,
         horizontal=True,
         label_visibility="collapsed",
         help="Investor View: presentation mode. Full Detail: full model detail.",
     )
     st.session_state.view_mode = _vm
-with ctrl1:
-    _preset_label = st.session_state.get("active_preset", "Base Case")
-    if _is_modified():
-        _preset_label = f"{_preset_label} (Modified)"
-    st.selectbox(
-        "Scenario",
-        options=["— load preset —"] + list(PRESETS.keys()),
-        index=0,
-        key="_preset_sel",
-        on_change=_on_preset_change,
-        help=f"Active: {_preset_label}",
-    )
-    if _is_modified():
-        st.caption(f"*{_preset_label}*")
-with ctrl2:
-    if st.button("▶  Run", type="primary", use_container_width=True):
-        run_and_store()
-        st.rerun()
-with ctrl3:
-    if is_stale():
-        st.markdown('<div class="status-stale">Inputs changed — click <b>Run</b></div>', unsafe_allow_html=True)
-    elif st.session_state.run_ts:
-        st.markdown(f'<div class="status-ok">Updated {st.session_state.run_ts}</div>', unsafe_allow_html=True)
+else:
+    # Full Detail: show all controls
+    _vm_col, ctrl1, ctrl2, ctrl3 = st.columns([2, 3, 1, 2])
+    with _vm_col:
+        _vm = st.radio(
+            "View",
+            ["Investor View", "Full Detail"],
+            index=1,
+            horizontal=True,
+            label_visibility="collapsed",
+            help="Investor View: presentation mode. Full Detail: full model detail.",
+        )
+        st.session_state.view_mode = _vm
+    with ctrl1:
+        _preset_label = st.session_state.get("active_preset", "Base Case")
+        if _is_modified():
+            _preset_label = f"{_preset_label} (Modified)"
+        st.selectbox(
+            "Scenario",
+            options=["— load preset —"] + list(PRESETS.keys()),
+            index=0,
+            key="_preset_sel",
+            on_change=_on_preset_change,
+            help=f"Active: {_preset_label}",
+        )
+        if _is_modified():
+            st.caption(f"*{_preset_label}*")
+    with ctrl2:
+        if st.button("▶  Run", type="primary", use_container_width=True):
+            run_and_store()
+            st.rerun()
+    with ctrl3:
+        if is_stale():
+            st.markdown('<div class="status-stale">Inputs changed — click <b>Run</b></div>', unsafe_allow_html=True)
+        elif st.session_state.run_ts:
+            st.markdown(f'<div class="status-ok">Updated {st.session_state.run_ts}</div>', unsafe_allow_html=True)
 
 if results_ready():
     _, mo_h, _ = st.session_state.results
 
-    # ── Universal date range slider (controls ALL tabs) ────────────────────
-    _active = mo_h[mo_h["revenue"] > 0]
-    _last   = int(_active["month_idx"].max()) + 1 if not _active.empty else 12
-    _hi_def = min(_last + 3, len(mo_h))
-    if "global_range_lo" not in st.session_state:
-        st.session_state.global_range_lo = 1
-    if "global_range_hi" not in st.session_state:
-        st.session_state.global_range_hi = _hi_def
-
-    # Clamp stored range to valid bounds (protects against preset switches changing dataset length)
-    _n_opts = len(mo_h)
-    st.session_state.global_range_lo = max(1, min(st.session_state.global_range_lo, _n_opts))
-    st.session_state.global_range_hi = max(st.session_state.global_range_lo, min(st.session_state.global_range_hi, _n_opts))
-
-    _rlo, _rhi = st.select_slider(
-        "Date Range — applies to all tabs",
-        options=list(range(1, len(mo_h) + 1)),
-        value=(st.session_state.global_range_lo, st.session_state.global_range_hi),
-        key="global_range_slider",
-        help="Slide to zoom any range of months. Every chart, table, and KPI card across all tabs updates instantly.",
-        label_visibility="collapsed",
-    )
-    st.session_state.global_range_lo = _rlo
-    st.session_state.global_range_hi = _rhi
-
-    # Period label for the selected range
-    _sel_months = _rhi - _rlo + 1
-    if _sel_months <= 24:
-        _rng_label = f"M{_rlo} – M{_rhi} ({_sel_months} months)"
-    elif _sel_months % 12 == 0:
-        _rng_label = f"M{_rlo} – M{_rhi} ({_sel_months // 12} years)"
-    else:
-        _rng_label = f"M{_rlo} – M{_rhi} ({_sel_months // 12}Y {_sel_months % 12}M)"
-    st.caption(f"📅 Showing **{_rng_label}** across all tabs")
-
-    # Determine view mode
+    # Determine view mode early
     _L1 = (st.session_state.view_mode == "Investor View")
 
-    # Top-level KPI bar — scoped to selected range (hidden in L1 mode)
+    # ── Universal date range slider (Full Detail only) ─────────────────────
+    if not _L1:
+        _active = mo_h[mo_h["revenue"] > 0]
+        _last   = int(_active["month_idx"].max()) + 1 if not _active.empty else 12
+        _hi_def = min(_last + 3, len(mo_h))
+        if "global_range_lo" not in st.session_state:
+            st.session_state.global_range_lo = 1
+        if "global_range_hi" not in st.session_state:
+            st.session_state.global_range_hi = _hi_def
+
+        # Clamp stored range to valid bounds (protects against preset switches changing dataset length)
+        _n_opts = len(mo_h)
+        st.session_state.global_range_lo = max(1, min(st.session_state.global_range_lo, _n_opts))
+        st.session_state.global_range_hi = max(st.session_state.global_range_lo, min(st.session_state.global_range_hi, _n_opts))
+
+        _rlo, _rhi = st.select_slider(
+            "Date Range — applies to all tabs",
+            options=list(range(1, len(mo_h) + 1)),
+            value=(st.session_state.global_range_lo, st.session_state.global_range_hi),
+            key="global_range_slider",
+            help="Slide to zoom any range of months. Every chart, table, and KPI card across all tabs updates instantly.",
+            label_visibility="collapsed",
+        )
+        st.session_state.global_range_lo = _rlo
+        st.session_state.global_range_hi = _rhi
+
+        # Period label for the selected range
+        _sel_months = _rhi - _rlo + 1
+        if _sel_months <= 24:
+            _rng_label = f"M{_rlo} – M{_rhi} ({_sel_months} months)"
+        elif _sel_months % 12 == 0:
+            _rng_label = f"M{_rlo} – M{_rhi} ({_sel_months // 12} years)"
+        else:
+            _rng_label = f"M{_rlo} – M{_rhi} ({_sel_months // 12}Y {_sel_months % 12}M)"
+        st.caption(f"📅 Showing **{_rng_label}** across all tabs")
+
+    # Top-level KPI bar — scoped to selected range (hidden in Investor mode)
     if not _L1:
         mo_top = _apply_range(mo_h)
         k1, k2, k3, k4, k5 = st.columns(5)
@@ -1158,7 +1174,7 @@ if results_ready():
         kpi(k4, "Total Borrowing Cost",      fmt_dollar(mo_top["interest"].sum()),                    "credit line interest")
         yr1 = mo_top[mo_top["month_idx"].between(_rlo - 1, _rlo + 10)]
         kpi(k5, "Year 1 Net Profit",         fmt_dollar(yr1["ebitda_after_interest"].sum()),           "first 12 months of range")
-    st.divider()
+        st.divider()
 
 
 # ════════════════════════════════════════════════════════════════════════════
