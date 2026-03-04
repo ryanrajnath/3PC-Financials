@@ -1546,17 +1546,19 @@ if _L1:
         mode="lines", line=dict(color=PC[3], width=2, dash="dash"),
     ))
 
-    # Vertical markers
+    # Vertical markers (use add_shape + add_annotation to avoid Plotly categorical axis bug)
     if _cf_pos_month != "Not reached":
-        fig_jcurve.add_vline(x=_cf_pos_month, line_dash="dot", line_color="#10B981", line_width=2,
-                             annotation_text=f"CF Positive ({_cf_pos_month})",
-                             annotation_font=dict(color="#10B981", size=13),
-                             annotation_position="top left")
+        fig_jcurve.add_shape(type="line", x0=_cf_pos_month, x1=_cf_pos_month, y0=0, y1=1,
+                             xref="x", yref="paper", line=dict(dash="dot", color="#10B981", width=2))
+        fig_jcurve.add_annotation(x=_cf_pos_month, y=0.96, xref="x", yref="paper",
+                                  text=f"CF Positive ({_cf_pos_month})", font=dict(color="#10B981", size=13),
+                                  showarrow=False, textangle=-90, xanchor="right", yanchor="top")
     if _line_free_month != "Not reached":
-        fig_jcurve.add_vline(x=_line_free_month, line_dash="dot", line_color="#F59E0B", line_width=2,
-                             annotation_text=f"Line Repaid ({_line_free_month})",
-                             annotation_font=dict(color="#F59E0B", size=13),
-                             annotation_position="top right")
+        fig_jcurve.add_shape(type="line", x0=_line_free_month, x1=_line_free_month, y0=0, y1=1,
+                             xref="x", yref="paper", line=dict(dash="dot", color="#F59E0B", width=2))
+        fig_jcurve.add_annotation(x=_line_free_month, y=0.96, xref="x", yref="paper",
+                                  text=f"Line Repaid ({_line_free_month})", font=dict(color="#F59E0B", size=13),
+                                  showarrow=False, textangle=-90, xanchor="left", yanchor="top")
 
     fig_jcurve.add_hline(y=0, line_color="#CBD5E1", line_width=1)
     fig_jcurve.update_layout(
