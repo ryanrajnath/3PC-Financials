@@ -1080,7 +1080,9 @@ if _is_investor:
         label_visibility="collapsed",
         help="Investor View: presentation mode. Full Detail: full model detail.",
     )
-    st.session_state.view_mode = _vm
+    if _vm != st.session_state.view_mode:
+        st.session_state.view_mode = _vm
+        st.rerun()
 else:
     # Full Detail: show all controls
     _vm_col, ctrl1, ctrl2, ctrl3 = st.columns([2, 3, 1, 2])
@@ -1093,7 +1095,9 @@ else:
             label_visibility="collapsed",
             help="Investor View: presentation mode. Full Detail: full model detail.",
         )
-        st.session_state.view_mode = _vm
+        if _vm != st.session_state.view_mode:
+            st.session_state.view_mode = _vm
+            st.rerun()
     with ctrl1:
         _preset_label = st.session_state.get("active_preset", "Base Case")
         if _is_modified():
@@ -1293,6 +1297,14 @@ if _L1:
         x=mo60["period"], y=mo60["loc_end"], name="Line of Credit Balance",
         fill="tozeroy", fillcolor="rgba(239,68,68,0.08)",
         line=dict(color=PC[3], width=3),
+    ))
+    fig_loc.add_trace(go.Scatter(
+        x=mo60["period"], y=mo60["ar_end"], name="Accounts Receivable",
+        line=dict(color="#F59E0B", width=2, dash="dash"),
+    ))
+    fig_loc.add_trace(go.Scatter(
+        x=mo60["period"], y=mo60["cash_end"], name="Cash on Hand",
+        line=dict(color="#10B981", width=2, dash="dash"),
     ))
     fig_loc.add_hline(y=float(a["max_loc"]), line_dash="dot", line_color="#EF4444",
                       annotation_text=f"Credit Limit ({fmt_dollar(float(a['max_loc']))})",
