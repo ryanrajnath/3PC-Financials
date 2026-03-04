@@ -1321,7 +1321,7 @@ if _L1:
 
     # 5 large KPIs
     _ka1, _ka2, _ka3, _ka4, _ka5 = st.columns(5)
-    william_kpi(_ka1, "Most You'll Owe the Bank", fmt_dollar(_peak_loc), _month_plain(_peak_loc_month))
+    william_kpi(_ka1, "Peak Credit Needed", fmt_dollar(_peak_loc), _month_plain(_peak_loc_month))
     william_kpi(_ka2, "Monthly Profit (Fully Staffed)", fmt_dollar(_ss_monthly_profit), f"avg Year 5")
     william_kpi(_ka3, "When You Get Paid Back", _month_plain(_payback_month), "total profits cover all losses")
     william_kpi(_ka4, "5-Year Total Profit", fmt_dollar(_total_profit_5yr), f"${_return_x:.1f}0 back per $1 in")
@@ -1364,7 +1364,7 @@ if _L1:
         marker=dict(size=5),
     ))
     fig_wf.add_trace(go.Scatter(
-        x=mo60["period"], y=mo60["loc_end"], name="Bank Balance Owed",
+        x=mo60["period"], y=mo60["loc_end"], name="Line of Credit Balance",
         mode="lines+markers", line=dict(color="#DC2626", width=3, dash="dot"),
         marker=dict(size=5),
     ))
@@ -1387,9 +1387,9 @@ if _L1:
         _wf_tbl = mo60[["period", "collections", "hourly_labor", "salaried_cost",
                          "overhead", "interest", "loc_draw", "loc_repay", "loc_end", "cash_end"]].copy()
         _wf_tbl.columns = ["Month", "Client Payments", "Payroll", "Management", "Overhead",
-                           "Interest", "Bank Borrowing", "Bank Repayment", "Bank Balance Owed", "Cash on Hand"]
+                           "Interest", "Bank Borrowing", "Bank Repayment", "Line of Credit Balance", "Cash on Hand"]
         _dollar_cols_wf = ["Client Payments", "Payroll", "Management", "Overhead", "Interest",
-                           "Bank Borrowing", "Bank Repayment", "Bank Balance Owed", "Cash on Hand"]
+                           "Bank Borrowing", "Bank Repayment", "Line of Credit Balance", "Cash on Hand"]
         _fmt_wf = {c: "${:,.0f}" for c in _dollar_cols_wf}
         st.dataframe(_wf_tbl.style.format(_fmt_wf), use_container_width=True, height=400, hide_index=True)
 
@@ -1435,20 +1435,20 @@ if _L1:
     with _cc_left:
         st.markdown("**Normal Plan**")
         _cl1, _cl2 = st.columns(2)
-        william_kpi(_cl1, "Most Borrowed at Once", fmt_dollar(_peak_loc), _month_plain(_peak_loc_month))
+        william_kpi(_cl1, "Peak Credit", fmt_dollar(_peak_loc), _month_plain(_peak_loc_month))
         william_kpi(_cl2, "Total Interest Paid", fmt_dollar(_total_interest), f"{_cost_of_money_pct:.1f}% of sales")
         _cl3, _cl4 = st.columns(2)
-        william_kpi(_cl3, "Bank Fully Paid Off", _month_plain(_line_free_month), f"{_base_months_to_repay} months after peak" if _base_months_to_repay != "N/A" else "")
+        william_kpi(_cl3, "Line Repaid", _month_plain(_line_free_month), f"{_base_months_to_repay} months after peak" if _base_months_to_repay != "N/A" else "")
         william_kpi(_cl4, "Interest as % of Sales", f"{_cost_of_money_pct:.1f}%", "what borrowing costs you per dollar earned")
 
     with _cc_right:
         st.markdown("**Stress Test** — bank limits you to $1M, you start 6 months late, 5% interest")
         st.caption("What happens if growth is slower than planned and the bank is cautious.")
         _cr1, _cr2 = st.columns(2)
-        william_kpi(_cr1, "Most Borrowed at Once", fmt_dollar(_ds_peak_loc), _month_plain(_ds_peak_loc_month))
+        william_kpi(_cr1, "Peak Credit", fmt_dollar(_ds_peak_loc), _month_plain(_ds_peak_loc_month))
         william_kpi(_cr2, "Total Interest Paid", fmt_dollar(_ds_total_interest), f"{_ds_cost_pct:.1f}% of sales")
         _cr3, _cr4 = st.columns(2)
-        william_kpi(_cr3, "Bank Fully Paid Off", _month_plain(_ds_repaid_month), f"{_ds_months_to_repay} months after peak" if _ds_months_to_repay != "N/A" else "")
+        william_kpi(_cr3, "Line Repaid", _month_plain(_ds_repaid_month), f"{_ds_months_to_repay} months after peak" if _ds_months_to_repay != "N/A" else "")
         william_kpi(_cr4, "Interest as % of Sales", f"{_ds_cost_pct:.1f}%", "what borrowing costs you per dollar earned")
 
     # LOC balance comparison chart
@@ -1613,7 +1613,7 @@ if _L1:
     # ════════════════════════════════════════════════════════════════════
     # SECTION E — Break-Even Chart
     # ════════════════════════════════════════════════════════════════════
-    william_section("When Does the Business Turn the Corner?")
+    william_section("Break-Even")
 
     # J-curve chart with cumulative net cash flow + LOC balance overlay
     fig_jcurve = go.Figure()
@@ -1627,7 +1627,7 @@ if _L1:
     ))
     # LOC balance
     fig_jcurve.add_trace(go.Scatter(
-        x=mo60["period"], y=mo60["loc_end"], name="Amount Owed to Bank",
+        x=mo60["period"], y=mo60["loc_end"], name="Line of Credit Balance",
         mode="lines", line=dict(color=PC[3], width=2, dash="dash"),
     ))
 
@@ -1642,7 +1642,7 @@ if _L1:
         fig_jcurve.add_shape(type="line", x0=_line_free_month, x1=_line_free_month, y0=0, y1=1,
                              xref="x", yref="paper", line=dict(dash="dot", color="#F59E0B", width=2))
         fig_jcurve.add_annotation(x=_line_free_month, y=0.96, xref="x", yref="paper",
-                                  text=f"Bank Paid Off ({_line_free_month})", font=dict(color="#F59E0B", size=13),
+                                  text=f"Line Repaid ({_line_free_month})", font=dict(color="#F59E0B", size=13),
                                   showarrow=False, textangle=-90, xanchor="left", yanchor="top")
 
     fig_jcurve.add_hline(y=0, line_color="#CBD5E1", line_width=1)
@@ -1686,7 +1686,7 @@ if _L1:
             "Growth Path": _comp_label,
             "Most You Borrow": fmt_dollar(_comp_peak),
             "First Profitable Month": _comp_cf_mo,
-            "Bank Paid Off": _comp_repaid_mo,
+            "Line Repaid": _comp_repaid_mo,
             "5-Year Total Profit": fmt_dollar(_comp_5yr),
             "Monthly Profit (Fully Staffed)": fmt_dollar(_comp_ss),
             "Annual Return": f"{_comp_annual:.0f}%",
