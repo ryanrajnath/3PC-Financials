@@ -1213,13 +1213,23 @@ if _L1:
     _inv_preset_name = _inv_presets[_inv_choice]
     _inv_p = PRESETS[_inv_preset_name]
 
-    # Check if we need to re-run (different preset selected)
+    # Scenario switched → load preset assumptions + headcount, run fresh
     if st.session_state.get("_inv_active") != _inv_choice:
         st.session_state.assumptions = _inv_p["assumptions"].copy()
         st.session_state.headcount_plan = _inv_p["headcount"].copy()
         st.session_state.active_preset = _inv_preset_name
         st.session_state.preset_assumptions = _inv_p["assumptions"].copy()
         st.session_state._inv_active = _inv_choice
+        # Clear caches so they rebuild with current assumptions
+        for _ck in list(st.session_state.keys()):
+            if _ck.startswith("william_downside_") or _ck.startswith("william_scale_"):
+                del st.session_state[_ck]
+        run_and_store()
+    elif is_stale():
+        # Returning from Full Detail with modified assumptions → re-run + bust caches
+        for _ck in list(st.session_state.keys()):
+            if _ck.startswith("william_downside_") or _ck.startswith("william_scale_"):
+                del st.session_state[_ck]
         run_and_store()
 
     if not results_ready():
@@ -1376,13 +1386,14 @@ if _L1:
     william_section("C. Peak Line Draw & Cost of Money")
 
     # Build downside scenario: $1M cap, 5% APR, 6-month delayed ramp
+    # Uses CURRENT assumptions (may have been tweaked in Full Detail)
     _ds_cache_key = f"william_downside_{_inv_choice}"
     if _ds_cache_key not in st.session_state:
-        _ds_assumptions = _inv_p["assumptions"].copy()
+        _ds_assumptions = st.session_state.assumptions.copy()
         _ds_assumptions["max_loc"] = 1_000_000
         _ds_assumptions["apr"] = 0.05
         # Shift headcount 6 months later
-        _ds_hc = [0] * 6 + _inv_p["headcount"][:114]
+        _ds_hc = [0] * 6 + st.session_state.headcount_plan[:114]
         _ds_w, _ds_m, _ds_q = run_model(_ds_assumptions, _ds_hc)
         st.session_state[_ds_cache_key] = _ds_m
 
@@ -1498,12 +1509,13 @@ if _L1:
     st.dataframe(_unit_pl, use_container_width=True, hide_index=True, height=250)
 
     # Scaling chart — 3 lines showing total monthly contribution
+    # Uses CURRENT assumptions with each preset's headcount ramp
     _scaling_data = []
     for _sc_label, _sc_pname in _inv_presets.items():
         _sc_p = PRESETS[_sc_pname]
         _sc_cache_key = f"william_scale_{_sc_label}"
         if _sc_cache_key not in st.session_state:
-            _sc_w, _sc_m, _sc_q = run_model(_sc_p["assumptions"], _sc_p["headcount"])
+            _sc_w, _sc_m, _sc_q = run_model(st.session_state.assumptions, _sc_p["headcount"])
             st.session_state[_sc_cache_key] = _sc_m
         _sc_mo = st.session_state[_sc_cache_key]
         _sc60 = _sc_mo[_sc_mo["month_idx"] < 60].copy()
