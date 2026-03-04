@@ -1074,36 +1074,24 @@ def _on_preset_change():
         run_and_store()
 
 # ── View mode toggle + controls ────────────────────────────────────────────
+# Single stable radio for view mode — never duplicated
+_vm = st.radio(
+    "View",
+    ["Investor View", "Full Detail"],
+    index=["Investor View", "Full Detail"].index(st.session_state.view_mode),
+    horizontal=True,
+    label_visibility="collapsed",
+    key="_view_mode_radio",
+)
+if _vm != st.session_state.view_mode:
+    st.session_state.view_mode = _vm
+    st.rerun()
+
 _is_investor = st.session_state.view_mode == "Investor View"
 
-if _is_investor:
-    # Investor View: just the view toggle, no preset/run controls
-    _vm = st.radio(
-        "View",
-        ["Investor View", "Full Detail"],
-        index=0,
-        horizontal=True,
-        label_visibility="collapsed",
-        help="Investor View: presentation mode. Full Detail: full model detail.",
-    )
-    if _vm != st.session_state.view_mode:
-        st.session_state.view_mode = _vm
-        st.rerun()
-else:
-    # Full Detail: show all controls
-    _vm_col, ctrl1, ctrl2, ctrl3 = st.columns([2, 3, 1, 2])
-    with _vm_col:
-        _vm = st.radio(
-            "View",
-            ["Investor View", "Full Detail"],
-            index=1,
-            horizontal=True,
-            label_visibility="collapsed",
-            help="Investor View: presentation mode. Full Detail: full model detail.",
-        )
-        if _vm != st.session_state.view_mode:
-            st.session_state.view_mode = _vm
-            st.rerun()
+# Full Detail controls — only shown when not in Investor View
+if not _is_investor:
+    ctrl1, ctrl2, ctrl3 = st.columns([3, 1, 2])
     with ctrl1:
         _preset_label = st.session_state.get("active_preset", "Base Case")
         if _is_modified():
@@ -1212,12 +1200,17 @@ if _L1:
         "Grow to 500": "25–500 Employees over 60 Months",
     }
 
+    _inv_keys = list(_inv_presets.keys())
+    _inv_prev = st.session_state.get("_inv_active", _inv_keys[2])
+    _inv_idx  = _inv_keys.index(_inv_prev) if _inv_prev in _inv_keys else 2
+
     _inv_choice = st.radio(
         "Growth Scenario",
-        list(_inv_presets.keys()),
-        index=2,
+        _inv_keys,
+        index=_inv_idx,
         horizontal=True,
         label_visibility="collapsed",
+        key="_inv_scenario_radio",
     )
 
     # Load and run the selected preset
