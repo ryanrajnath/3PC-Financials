@@ -264,7 +264,7 @@ def run_model(assumptions: dict, headcount_plan: list):
 
     # --- Headcount derived --------------------------------------------
     df["team_leads"] = df["inspectors"].apply(
-        lambda x: ceil(x / tl_ratio) if x > 0 else 0
+        lambda x: ceil(x / tl_ratio) if x > 0 and tl_ratio > 0 else 0
     )
 
     # Inspector turnover — compute weekly new hires
@@ -293,9 +293,9 @@ def run_model(assumptions: dict, headcount_plan: list):
             _mgmt_basis.append(_last_active)
     df["mgmt_insp_basis"] = _mgmt_basis
 
-    df["n_opscoord"]    = df["mgmt_insp_basis"].apply(lambda x: ceil(x / ops_span)  if x > 0 else 0)
-    df["n_fieldsup"]    = df["mgmt_insp_basis"].apply(lambda x: ceil(x / fsup_span) if x > 0 else 0)
-    df["n_regionalmgr"] = df["mgmt_insp_basis"].apply(lambda x: ceil(x / rmgr_span) if x > 0 else 0)
+    df["n_opscoord"]    = df["mgmt_insp_basis"].apply(lambda x: ceil(x / ops_span)  if x > 0 and ops_span > 0 else 0)
+    df["n_fieldsup"]    = df["mgmt_insp_basis"].apply(lambda x: ceil(x / fsup_span) if x > 0 and fsup_span > 0 else 0)
+    df["n_regionalmgr"] = df["mgmt_insp_basis"].apply(lambda x: ceil(x / rmgr_span) if x > 0 and rmgr_span > 0 else 0)
 
     # --- Revenue (weekly, accrual) ------------------------------------
     # Scheduled hours × utilization rate = billable hours

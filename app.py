@@ -343,32 +343,17 @@ def william_kpi(col, label, value, sub=None):
 def william_section(label):
     st.markdown(f'<div class="william-section">{label}</div>', unsafe_allow_html=True)
 
-# ── Valuation curve (EV/EBITDA multiples by size tier) ────────────────────
-# Calibrated from: UHY 2024, First Page Sage 2025, Raincatcher, Kroll M&A data
-# Reflects quality inspection / containment staffing (above plain light industrial,
-# below pure professional staffing). Midpoint of market range at each tier.
-_VALUATION_CURVE = [
-    (0,          2.5),   # EBITDA < $250K  — main-street sale, high key-person risk
-    (250_000,    3.5),   # $250K – $500K   — small business; limited buyer pool
-    (500_000,    4.5),   # $500K – $1M     — lower MM entry; M&A process viable
-    (1_000_000,  5.0),   # $1M – $2M       — light industrial / inspection LMM range
-    (2_000_000,  6.0),   # $2M – $5M       — mid-market; PE add-on / platform interest
-    (5_000_000,  7.5),   # $5M+            — strategic value; recurring revenue premium
-]
-
-def _ev_multiple(ebitda: float) -> float:
-    """Interpolated EV/EBITDA multiple based on trailing EBITDA size."""
-    if ebitda <= 0:
-        return _VALUATION_CURVE[0][1]
-    floors = [c[0] for c in _VALUATION_CURVE]
-    mults  = [c[1] for c in _VALUATION_CURVE]
-    if ebitda >= floors[-1]:
-        return mults[-1]
-    for i in range(len(floors) - 1):
-        if floors[i] <= ebitda < floors[i + 1]:
-            t = (ebitda - floors[i]) / (floors[i + 1] - floors[i])
-            return mults[i] + t * (mults[i + 1] - mults[i])
-    return mults[0]
+def _human_month(period_str):
+    """Convert 'M22' to 'Month 22 (~2 years)' for William."""
+    if not period_str or period_str == "Not reached":
+        return period_str
+    n = int(period_str.replace("M", ""))
+    if n < 12:
+        return f"Month {n}"
+    yrs = n / 12
+    if n % 12 == 0:
+        return f"Month {n} ({n // 12} yr{'s' if n > 12 else ''})"
+    return f"Month {n} (~{yrs:.1f} yrs)"
 
 def run_and_store():
     with st.spinner("Calculating…"):
@@ -1256,104 +1241,171 @@ if _L1:
     _be_rows = mo60[mo60["cum_ebitda"] > 0]
     _be_month = _be_rows.iloc[0]["period"] if len(_be_rows) else "Not reached"
 
+    # ROI
+    _roi = _total_profit_5yr / _peak_loc if _peak_loc > 100 else 0
+
+    # Per-inspector monthly profit at steady state (last 12 months)
+    _ss = mo60.tail(12)
+    _ss_inspectors = _ss["inspectors_avg"].mean()
+    _ss_profit = _ss["ebitda_after_interest"].mean()
+    _per_insp_profit = _ss_profit / _ss_inspectors if _ss_inspectors > 1 else 0
+
     # ── KPIs ───────────────────────────────────────────────────────────
-    _k1, _k2, _k3, _k4 = st.columns(4)
+    _k1, _k2, _k3 = st.columns(3)
     william_kpi(_k1, "Peak Credit Needed", fmt_dollar(_peak_loc))
     william_kpi(_k2, "5-Year Total Profit", fmt_dollar(_total_profit_5yr))
-    william_kpi(_k3, "Total Interest Paid", fmt_dollar(_total_interest))
-    william_kpi(_k4, "Line Repaid", _line_free_month)
+    william_kpi(_k3, "Return on Capital", f"{_roi:.1f}x" if _peak_loc > 100 else "N/A",
+                sub="total profit \u00f7 peak credit")
+
+    _k4, _k5, _k6 = st.columns(3)
+    william_kpi(_k4, "Total Interest Paid", fmt_dollar(_total_interest))
+    william_kpi(_k5, "Line Repaid", _human_month(_line_free_month),
+                sub="still in use at month 60" if _line_free_month == "Not reached" else None)
+    william_kpi(_k6, "Profit per Inspector", f"${_per_insp_profit:,.0f}/mo",
+                sub="at full speed (avg last 12 mo)")
+
+    # ════════════════════════════════════════════════════════════════════
+    # Year-by-Year Summary
+    # ════════════════════════════════════════════════════════════════════
+    william_section("Year-by-Year Summary")
+
+    # Group into model years (every 12 months)
+    mo60["model_year"] = (mo60["month_idx"] // 12) + 1
+    _yr_summary = mo60.groupby("model_year").agg(
+        revenue=("revenue", "sum"),
+        total_costs=("hourly_labor", "sum"),
+        salaried=("salaried_cost", "sum"),
+        overhead=("overhead", "sum"),
+        interest=("interest", "sum"),
+        profit=("ebitda_after_interest", "sum"),
+        avg_headcount=("inspectors_avg", "mean"),
+    ).reset_index()
+    _yr_summary["total_costs"] = _yr_summary["total_costs"] + _yr_summary["salaried"] + _yr_summary["overhead"] + _yr_summary["interest"]
+    _yr_summary["cumulative"] = _yr_summary["profit"].cumsum()
+
+    _yr_display = pd.DataFrame({
+        "Year": [f"Year {int(r['model_year'])}" for _, r in _yr_summary.iterrows()],
+        "Avg Inspectors": [f"{r['avg_headcount']:.0f}" for _, r in _yr_summary.iterrows()],
+        "Revenue": [fmt_dollar(r["revenue"]) for _, r in _yr_summary.iterrows()],
+        "Total Costs": [fmt_dollar(r["total_costs"]) for _, r in _yr_summary.iterrows()],
+        "Profit": [fmt_dollar(r["profit"]) for _, r in _yr_summary.iterrows()],
+        "Cumulative": [fmt_dollar(r["cumulative"]) for _, r in _yr_summary.iterrows()],
+    })
+    st.dataframe(_yr_display, use_container_width=True, hide_index=True)
 
     # ════════════════════════════════════════════════════════════════════
     # Money In vs. Money Out Each Month
     # ════════════════════════════════════════════════════════════════════
     william_section("Money In vs. Money Out Each Month")
 
+    mo60["total_costs_out"] = mo60["hourly_labor"] + mo60["salaried_cost"] + mo60["overhead"] + mo60["interest"]
+
     fig_wf = go.Figure()
-    fig_wf.add_trace(go.Bar(x=mo60["period"], y=mo60["collections"], name="Collections In", marker_color="#10B981"))
-    fig_wf.add_trace(go.Bar(x=mo60["period"], y=-mo60["hourly_labor"], name="Payroll", marker_color="#EF4444"))
-    fig_wf.add_trace(go.Bar(x=mo60["period"], y=-mo60["salaried_cost"], name="Management", marker_color="#F59E0B"))
-    fig_wf.add_trace(go.Bar(x=mo60["period"], y=-mo60["overhead"], name="Overhead", marker_color="#F97316"))
-    fig_wf.add_trace(go.Bar(x=mo60["period"], y=-mo60["interest"], name="Interest", marker_color="#8B5CF6"))
+    fig_wf.add_trace(go.Bar(
+        x=mo60["period"], y=mo60["collections"], name="Money In",
+        marker_color="#10B981",
+        hovertemplate="<b>%{x}</b><br>Money In: %{y:$,.0f}<extra></extra>",
+    ))
+    fig_wf.add_trace(go.Bar(
+        x=mo60["period"], y=-mo60["total_costs_out"], name="Money Out",
+        marker_color="#EF4444",
+        hovertemplate="<b>%{x}</b><br>Money Out: %{customdata:$,.0f}<extra></extra>",
+        customdata=mo60["total_costs_out"],
+    ))
+    fig_wf.add_trace(go.Scatter(
+        x=mo60["period"], y=mo60["ebitda_after_interest"], name="Net Profit",
+        mode="lines", line=dict(color="#0EA5E9", width=2),
+        hovertemplate="<b>%{x}</b><br>Net Profit: %{y:$,.0f}<extra></extra>",
+    ))
     fig_wf.update_layout(
-        template=TPL, barmode="relative", height=400,
+        template="plotly_white", barmode="relative", height=400,
         margin=dict(l=10, r=10, t=10, b=60),
         legend=dict(orientation="h", y=1.10, x=0, yanchor="bottom", font=dict(size=13)),
         plot_bgcolor="#FAFBFC", paper_bgcolor="rgba(0,0,0,0)",
         yaxis=dict(tickformat="$,.0f", gridcolor="#E2E8F0", tickfont=dict(size=13),
                    zeroline=True, zerolinecolor="#CBD5E1", zerolinewidth=1),
         xaxis=dict(showgrid=False, tickfont=dict(size=13)),
-        hoverlabel=dict(bgcolor="#1E293B", font_color="white", font_size=13),
     )
     fig_wf.add_hline(y=0, line_color="#CBD5E1", line_width=1)
-    st.plotly_chart(fig_wf, use_container_width=True, config=_CHART_CONFIG)
+    st.plotly_chart(fig_wf, use_container_width=True, config={"scrollZoom": False, "displayModeBar": True, "modeBarButtonsToRemove": ["lasso2d", "select2d"]})
 
     # ════════════════════════════════════════════════════════════════════
     # How Much You Owe the Bank Over Time
     # ════════════════════════════════════════════════════════════════════
     william_section("Line of Credit Balance Over Time")
 
-    fig_loc = go.Figure()
+    from plotly.subplots import make_subplots
+    fig_loc = make_subplots(specs=[[{"secondary_y": True}]])
     fig_loc.add_trace(go.Scatter(
         x=mo60["period"], y=mo60["loc_end"], name="Line of Credit Balance",
-        fill="tozeroy", fillcolor="rgba(239,68,68,0.08)",
-        line=dict(color=PC[3], width=3),
-    ))
+        fill="tozeroy", fillcolor="rgba(239,68,68,0.12)",
+        line=dict(color="#EF4444", width=3),
+        hovertemplate="<b>%{x}</b><br>LOC Balance: %{y:$,.0f}<extra></extra>",
+    ), secondary_y=False)
     fig_loc.add_trace(go.Scatter(
         x=mo60["period"], y=mo60["ar_end"], name="Accounts Receivable",
         line=dict(color="#F59E0B", width=2, dash="dash"),
-    ))
+        hovertemplate="<b>%{x}</b><br>AR: %{y:$,.0f}<extra></extra>",
+    ), secondary_y=False)
     fig_loc.add_trace(go.Scatter(
         x=mo60["period"], y=mo60["cash_end"], name="Cash on Hand",
         line=dict(color="#10B981", width=2, dash="dash"),
-    ))
+        hovertemplate="<b>%{x}</b><br>Cash: %{y:$,.0f}<extra></extra>",
+    ), secondary_y=False)
+    fig_loc.add_trace(go.Scatter(
+        x=mo60["period"], y=mo60["inspectors_avg"], name="Inspectors",
+        line=dict(color="#0EA5E9", width=2, dash="dot"),
+        hovertemplate="<b>%{x}</b><br>Inspectors: %{y:.0f}<extra></extra>",
+    ), secondary_y=True)
     fig_loc.add_hline(y=float(a["max_loc"]), line_dash="dot", line_color="#EF4444",
                       annotation_text=f"Credit Limit ({fmt_dollar(float(a['max_loc']))})",
-                      annotation_font=dict(color="#EF4444", size=13))
+                      annotation_font=dict(color="#EF4444", size=13),
+                      secondary_y=False)
     if _line_free_month != "Not reached":
         fig_loc.add_shape(type="line", x0=_line_free_month, x1=_line_free_month, y0=0, y1=1,
                           xref="x", yref="paper", line=dict(dash="dot", color="#10B981", width=2))
         fig_loc.add_annotation(x=_line_free_month, y=0.96, xref="x", yref="paper",
-                               text=f"Line Repaid ({_line_free_month})", font=dict(color="#10B981", size=13),
+                               text=f"Line Repaid ({_human_month(_line_free_month)})", font=dict(color="#10B981", size=13),
                                showarrow=False, textangle=-90, xanchor="right", yanchor="top")
     fig_loc.update_layout(
-        template=TPL, height=400,
+        template="plotly_white", height=400,
         margin=dict(l=10, r=10, t=10, b=60),
-        legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom", font=dict(size=13)),
+        legend=dict(orientation="h", y=1.12, x=0, yanchor="bottom", font=dict(size=13)),
         plot_bgcolor="#FAFBFC", paper_bgcolor="rgba(0,0,0,0)",
-        yaxis=dict(tickformat="$,.0f", gridcolor="#E2E8F0", tickfont=dict(size=13)),
-        xaxis=dict(showgrid=False, tickfont=dict(size=13)),
-        hoverlabel=dict(bgcolor="#1E293B", font_color="white", font_size=13),
     )
-    st.plotly_chart(fig_loc, use_container_width=True, config=_CHART_CONFIG)
+    fig_loc.update_yaxes(tickformat="$,.0f", gridcolor="#E2E8F0", tickfont=dict(size=13), secondary_y=False)
+    fig_loc.update_yaxes(title_text="Inspectors", tickfont=dict(size=12), showgrid=False, secondary_y=True)
+    fig_loc.update_xaxes(showgrid=False, tickfont=dict(size=13))
+    st.plotly_chart(fig_loc, use_container_width=True, config={"scrollZoom": False, "displayModeBar": True, "modeBarButtonsToRemove": ["lasso2d", "select2d"]})
 
     # ════════════════════════════════════════════════════════════════════
     # Break-Even
     # ════════════════════════════════════════════════════════════════════
-    william_section("Break-Even")
+    william_section("Break-Even — Cumulative Profit Over Time")
 
     fig_be = go.Figure()
     fig_be.add_trace(go.Scatter(
         x=mo60["period"], y=mo60["cum_ebitda"], name="Total Profit To Date",
-        mode="lines", line=dict(color=PC[0], width=3),
-        fill="tozeroy", fillcolor="rgba(14,165,233,0.08)",
+        mode="lines", line=dict(color="#0EA5E9", width=3),
+        fill="tozeroy", fillcolor="rgba(14,165,233,0.10)",
+        hovertemplate="<b>%{x}</b><br>Cumulative Profit: %{y:$,.0f}<extra></extra>",
     ))
     if _be_month != "Not reached":
         fig_be.add_shape(type="line", x0=_be_month, x1=_be_month, y0=0, y1=1,
                          xref="x", yref="paper", line=dict(dash="dot", color="#10B981", width=2))
         fig_be.add_annotation(x=_be_month, y=0.96, xref="x", yref="paper",
-                              text=f"Break-Even ({_be_month})", font=dict(color="#10B981", size=13),
+                              text=f"Break-Even ({_human_month(_be_month)})", font=dict(color="#10B981", size=13),
                               showarrow=False, textangle=-90, xanchor="right", yanchor="top")
     fig_be.add_hline(y=0, line_color="#CBD5E1", line_width=1)
     fig_be.update_layout(
-        template=TPL, height=400,
+        template="plotly_white", height=400,
         margin=dict(l=10, r=10, t=10, b=60),
         legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom", font=dict(size=13)),
         plot_bgcolor="#FAFBFC", paper_bgcolor="rgba(0,0,0,0)",
         yaxis=dict(tickformat="$,.0f", gridcolor="#E2E8F0", tickfont=dict(size=13)),
         xaxis=dict(showgrid=False, tickfont=dict(size=13)),
-        hoverlabel=dict(bgcolor="#1E293B", font_color="white", font_size=13),
     )
-    st.plotly_chart(fig_be, use_container_width=True, config=_CHART_CONFIG)
+    st.plotly_chart(fig_be, use_container_width=True, config={"scrollZoom": False, "displayModeBar": True, "modeBarButtonsToRemove": ["lasso2d", "select2d"]})
 
     # Excel export
     if results_ready():
@@ -1435,7 +1487,7 @@ with tab_inputs:
     else:
         _ot_bill = a["st_bill_rate"] * a["ot_bill_premium"]
     _util    = float(a.get("inspector_utilization", 1.0))
-    _ob_wk   = float(a.get("inspector_onboarding_cost", 500)) / max(1, int(a.get("inspector_avg_tenure_weeks", 26)))
+    _ob_wk   = float(a.get("inspector_onboarding_cost", 500)) * float(a.get("inspector_turnover_rate", 1.0)) / 52.0
     _wk_rev  = _util * (a["st_hours"] * a["st_bill_rate"] + a["ot_hours"] * _ot_bill)
     _wk_cost = (a["st_hours"] * a["inspector_wage"] * (1 + a["burden"]) +
                 a["ot_hours"] * a["inspector_wage"] * a["ot_pay_multiplier"] * (1 + a["burden"]) + _ob_wk)
@@ -2209,38 +2261,17 @@ with tab_detail:
         hc      = st.session_state.headcount_plan
         a_start = st.session_state.assumptions["start_date"]
 
-        section("Quick Fill")
-        c1, c2, c3, c4 = st.columns(4)
-        fv = c1.number_input("Inspectors", 0, 10_000, 25, step=5, key="fv",
-            help="Number of inspectors to staff during this period.")
-        ff = c2.number_input("From Month", 1, 120, 1, step=1, key="ff",
-            help="First month to fill. Month 1 = your model start date.")
-        ft = c3.number_input("To Month",   1, 120, 12, step=1, key="ft",
-            help="Last month to fill (inclusive). Month 12 = end of Year 1.")
-        if c4.button("Apply", key="hc_apply", use_container_width=True,
-                     help="Sets inspector count for the selected month range."):
-            for i in range(int(ff) - 1, int(ft)):
-                hc[i] = int(fv)
-            st.session_state.headcount_plan = hc
-            st.rerun()
+        st.info("Edit the headcount plan in the **Assumptions** tab above, then click **Run** to update.")
 
+        # Read-only headcount chart
+        hc      = st.session_state.headcount_plan
         month_labels = [f"M{i+1}" for i in range(120)]
-
-        section("Preview")
         lo_hc, hi_hc = st.select_slider("Show months", options=list(range(1, 121)), value=(1, 60), key="hc_rng")
         hc_prev = pd.DataFrame({"period": month_labels, "inspectors": hc}).iloc[lo_hc - 1:hi_hc]
         fig_hc  = px.bar(hc_prev, x="period", y="inspectors", template=TPL,
                          title="Inspectors Staffed per Month", color_discrete_sequence=[PC[0]])
         fig_hc.update_layout(height=240, margin=dict(l=10,r=10,t=36,b=10))
         st.plotly_chart(fig_hc, use_container_width=True, config=_CHART_CONFIG)
-
-        section("Edit -- All 120 Months")
-        hc_df  = pd.DataFrame({"Period": month_labels, "Inspectors": hc})
-        edited = st.data_editor(hc_df, column_config={
-            "Period":     st.column_config.TextColumn(disabled=True),
-            "Inspectors": st.column_config.NumberColumn(min_value=0, max_value=10_000, step=1),
-        }, use_container_width=True, height=500, num_rows="fixed")
-        st.session_state.headcount_plan = edited["Inspectors"].tolist()
 
     # ── Summary sub-tab ───────────────────────────────────────────────────
     with d3:
@@ -2333,7 +2364,8 @@ with tab_detail:
             _tax_cols["sc_tax"]               = ("sc_tax",               "sum")
             _tax_cols["federal_tax"]           = ("federal_tax",          "sum")
             _tax_cols["net_income_after_tax"]  = ("net_income_after_tax", "sum")
-        annual = mo_full.groupby("year").agg(**{
+        mo_full["_model_year"] = (mo_full["month_idx"] // 12) + 1
+        annual = mo_full.groupby("_model_year").agg(**{
             "revenue":               ("revenue",               "sum"),
             "hourly_labor":          ("hourly_labor",           "sum"),
             "salaried_cost":         ("salaried_cost",          "sum"),
@@ -2349,7 +2381,7 @@ with tab_detail:
         annual["total_expenses"] = annual["hourly_labor"] + annual["salaried_cost"] + annual["overhead"]
         annual["oper_margin"]    = np.where(annual["revenue"] > 0, annual["ebitda"] / annual["revenue"], 0)
         annual["pretax_margin"]  = np.where(annual["revenue"] > 0, annual["ebitda_after_interest"] / annual["revenue"], 0)
-        annual["year_label"]     = annual["year"].apply(lambda y: f"Year {y - annual['year'].min() + 1}  ({y})")
+        annual["year_label"]     = annual["_model_year"].apply(lambda y: f"Year {int(y)}")
         has_tax = "net_income_after_tax" in annual.columns
 
         if has_tax:
@@ -2488,81 +2520,7 @@ with tab_detail:
 
         st.divider()
 
-        section("Key Investor Questions -- Direct Answers")
-        st.caption(
-            "This section answers the four questions a capital allocator asks before committing to this division."
-        )
-
-        _peak2       = float(mo_full["loc_end"].max()) if len(mo_full) else 0
-        _peak_mo2    = mo_full.loc[mo_full["loc_end"].idxmax(), "period"] if len(mo_full) else "--"
-        _ss_ni2      = float(mo_full.tail(12)["ebitda_after_interest"].mean())
-        _tot_int2    = float(mo_full["interest"].sum())
-        _yr1_ni2     = float(mo_full[mo_full["month_idx"] < 12]["ebitda_after_interest"].sum())
-        _ropc2       = (_ss_ni2 * 12 / _peak2) if _peak2 > 100 else 0
-        _be_rows2    = mo_full[mo_full["ebitda_after_interest"] > 0]
-        _be_mo2      = _be_rows2.iloc[0]["period"] if len(_be_rows2) else "Not reached"
-        _int_cov2    = (_ss_ni2 * 12 + _tot_int2) / max(1, _tot_int2)
-        _max_insp    = int(mo_full["inspectors_avg"].max())
-
-        iq1, iq2 = st.columns(2)
-
-        with iq1:
-            st.markdown("**Does it work and is it competitive?**")
-            if _ss_ni2 > 0:
-                st.markdown(
-                    f'<div class="verdict-pass">Yes — when running at full speed the division generates <strong>{fmt_dollar(_ss_ni2)}/month</strong> '
-                    f'after borrowing costs ({fmt_dollar(_ss_ni2 * 12)}/year). '
-                    f'It turns profitable in <strong>{_be_mo2}</strong>. '
-                    f'Year 1 net profit: <strong>{fmt_dollar(_yr1_ni2)}</strong>.</div>',
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown(
-                    f'<div class="verdict-fail">Not yet — net profit at full speed is <strong>{fmt_dollar(_ss_ni2)}/month</strong>. '
-                    'Adjust bill rate, payroll overhead, or headcount to reach profitability.</div>',
-                    unsafe_allow_html=True,
-                )
-
-            st.markdown("**How big can this become inside OpSource?**")
-            st.markdown(
-                f'<div class="info-box">At <strong>{_max_insp} peak inspectors</strong>, this scenario generates '
-                f'<strong>{fmt_dollar(mo_full["revenue"].max())}/month</strong> in peak revenue. '
-                f'Scaling to 150-200 inspectors is achievable within 24-36 months with '
-                f'the right supervisor layering and credit line. Each additional inspector '
-                f'at current rates adds <strong>{fmt_dollar(float(a.get("st_bill_rate", 39)) * (float(a.get("st_hours", 40)) + float(a.get("ot_hours", 10)) * float(a.get("ot_bill_premium", 1.5))) * 52 / 12)}/month</strong> in annualized revenue.</div>',
-                unsafe_allow_html=True,
-            )
-
-        with iq2:
-            st.markdown("**What money do you need and what does it cost?**")
-            _max_loc3 = float(a.get("max_loc", 1_000_000))
-            _apr3 = float(a.get("apr", 0.085))
-            if _peak2 <= _max_loc3:
-                st.markdown(
-                    f'<div class="verdict-pass">Peak credit draw: <strong>{fmt_dollar(_peak2)}</strong> in <strong>{_peak_mo2}</strong> — within your '
-                    f'<strong>{fmt_dollar(_max_loc3)}</strong> credit line. '
-                    f'Total interest cost: <strong>{fmt_dollar(_tot_int2)}</strong> at {_apr3:.1%} APR. '
-                    f'Profit vs. borrowing cost at full speed: <strong>{_int_cov2:.1f}x</strong>. '
-                    f'Return on money deployed: <strong>{_ropc2:.1f}x</strong> annualized.</div>',
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown(
-                    f'<div class="verdict-fail">Peak draw <strong>{fmt_dollar(_peak2)}</strong> exceeds your <strong>{fmt_dollar(_max_loc3)}</strong> credit line. '
-                    'Increase the credit line or reduce terms/headcount ramp.</div>',
-                    unsafe_allow_html=True,
-                )
-
-            st.markdown("**Does it run without you?**")
-            st.markdown(
-                f'<div class="info-box">Yes — the model includes a fully-loaded GM at '
-                f'<strong>{fmt_dollar(float(a.get("gm_loaded_annual", 117_000)) / 12)}/month</strong> '
-                f'responsible for day-to-day operations, plus automatic supervisor layering '
-                f'(1 Field Sup per {int(a.get("fieldsup_span", 25))} inspectors, '
-                f'1 Ops Coord per {int(a.get("opscoord_span", 75))}). '
-                'Owner role is capital allocation and performance review only.</div>',
-                unsafe_allow_html=True,
-            )
+        st.info("Switch to **Investor View** for the executive summary with key investor answers.")
 
     # ── Sensitivity sub-tab ───────────────────────────────────────────────
     with d4:
@@ -2840,14 +2798,18 @@ with tab_detail:
 
         st.divider()
         if st.button("Export Full Report + Sensitivity to Excel"):
-            with st.spinner("Building..."):
-                sens = {
-                    "Sens_PayTerms": nd_df, "Sens_BillRate": br_df,
-                    "Sens_Burden": burd_df, "Sens_OTHours": ot_df,
-                }
-                xlsx = build_excel(a, hc, weekly_df, mo_full, qdf_full, sens)
-            st.download_button(
-                "Download Excel", data=xlsx,
-                file_name="containment_division_sensitivity.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            _sens_vars = {}
+            for _sname, _svar in [("Sens_PayTerms", "nd_df"), ("Sens_BillRate", "br_df"),
+                                   ("Sens_Burden", "burd_df"), ("Sens_OTHours", "ot_df")]:
+                if _svar in dir():
+                    _sens_vars[_sname] = eval(_svar)
+            if not _sens_vars:
+                st.warning("Run at least one sensitivity tab above before exporting.")
+            else:
+                with st.spinner("Building..."):
+                    xlsx = build_excel(a, hc, weekly_df, mo_full, qdf_full, _sens_vars if _sens_vars else None)
+                st.download_button(
+                    "Download Excel", data=xlsx,
+                    file_name="containment_division_sensitivity.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
