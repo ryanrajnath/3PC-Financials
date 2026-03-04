@@ -1004,6 +1004,27 @@ PRESETS = {
             (61,120, 350),   # Hold at 350
         ]),
     },
+    "Flat 25 Inspectors — 60 Months": {
+        "assumptions": {**default_assumptions(),
+            "st_bill_rate": 39.0, "ot_hours": 10, "ot_bill_mode": "passthrough",
+            "inspector_wage": 20.0, "burden": 0.30,
+            "lead_wage": 25.0, "lead_st_hours": 40, "lead_ot_hours": 10,
+            "team_lead_ratio": 12, "lead_bill_premium": 1.0,
+            "gm_loaded_annual": 117_000, "opscoord_base": 60_000,
+            "fieldsup_base": 65_000, "regionalmgr_base": 100_000,
+            "mgmt_burden": 0.25,
+            "net_days": 120, "apr": 0.05, "max_loc": 500_000,
+            "cash_buffer": 15_000, "initial_cash": 0,
+            "software_monthly": 300, "recruiting_monthly": 500,
+            "insurance_monthly": 800, "travel_monthly": 300,
+            "software_per_inspector": 12.0, "insurance_per_inspector": 8.0,
+            "travel_per_inspector": 5.0, "recruiting_per_inspector": 10.0,
+            "inspector_onboarding_cost": 500.0, "inspector_turnover_rate": 1.0,
+            "mgmt_winddown_weeks": 8, "bad_debt_pct": 0.005,
+            "corp_alloc_mode": "pct_revenue", "corp_alloc_pct": 0.02, "corp_alloc_fixed": 0.0,
+        },
+        "headcount": _build_hc([(1, 120, 25)]),
+    },
 }
 
 # ── Scenario drift detection ───────────────────────────────────────────────
@@ -1185,15 +1206,16 @@ if _L1:
 
     # ── Preset selector (3 radio buttons) ──────────────────────────────
     _inv_presets = {
-        "Conservative — 200 Inspectors": "25–200 Employees over 60 Months",
-        "Moderate — 350 Inspectors": "25–350 Employees over 60 Months",
-        "Aggressive — 500 Inspectors": "25–500 Employees over 60 Months",
+        "Just 25 Inspectors": "Flat 25 Inspectors — 60 Months",
+        "Grow to 200": "25–200 Employees over 60 Months",
+        "Grow to 350": "25–350 Employees over 60 Months",
+        "Grow to 500": "25–500 Employees over 60 Months",
     }
 
     _inv_choice = st.radio(
         "Growth Scenario",
         list(_inv_presets.keys()),
-        index=1,
+        index=2,
         horizontal=True,
         label_visibility="collapsed",
     )
