@@ -1305,45 +1305,43 @@ if _L1:
     william_kpi(_ka4, "5-Year Total Profit", fmt_dollar(_total_profit_5yr), f"{_return_x:.1f}x return on capital")
 
     # ════════════════════════════════════════════════════════════════════
-    # SECTION B — Monthly Cash-Flow Waterfall (first 24 months)
+    # SECTION B — Monthly Cash-Flow Waterfall (60 months)
     # ════════════════════════════════════════════════════════════════════
     william_section("B. Monthly Cash-Flow Waterfall")
-    st.caption("First 24 months — where the money goes")
-
-    mo24 = mo60[mo60["month_idx"] < 24].copy()
+    st.caption("Full 60-month view — where the money goes")
 
     fig_wf = go.Figure()
 
     # Green bars — collections in
     fig_wf.add_trace(go.Bar(
-        x=mo24["period"], y=mo24["collections"], name="Collections In",
+        x=mo60["period"], y=mo60["collections"], name="Collections In",
         marker_color="#10B981",
     ))
     # Red stacked bars — costs out
     fig_wf.add_trace(go.Bar(
-        x=mo24["period"], y=-mo24["hourly_labor"], name="Payroll",
+        x=mo60["period"], y=-mo60["hourly_labor"], name="Payroll",
         marker_color="#EF4444",
     ))
     fig_wf.add_trace(go.Bar(
-        x=mo24["period"], y=-mo24["salaried_cost"], name="Management",
+        x=mo60["period"], y=-mo60["salaried_cost"], name="Management",
         marker_color="#F59E0B",
     ))
     fig_wf.add_trace(go.Bar(
-        x=mo24["period"], y=-mo24["overhead"], name="Overhead",
+        x=mo60["period"], y=-mo60["overhead"], name="Overhead",
         marker_color="#F97316",
     ))
     fig_wf.add_trace(go.Bar(
-        x=mo24["period"], y=-mo24["interest"], name="Interest",
+        x=mo60["period"], y=-mo60["interest"], name="Interest",
         marker_color="#8B5CF6",
     ))
     # Lines
     fig_wf.add_trace(go.Scatter(
-        x=mo24["period"], y=mo24["cash_end"], name="Cash Balance",
+        x=mo60["period"], y=mo60["cash_end"], name="Cash Balance",
         mode="lines+markers", line=dict(color="#0EA5E9", width=3),
         marker=dict(size=5),
     ))
     fig_wf.add_trace(go.Scatter(
-        x=mo24["period"], y=mo24["loc_end"], name="LOC Balance",
+        x=mo60["period"], y=mo60["loc_end"], name="LOC Balance",
         mode="lines+markers", line=dict(color="#F59E0B", width=3, dash="dot"),
         marker=dict(size=5),
     ))
@@ -1363,7 +1361,7 @@ if _L1:
 
     # Monthly table
     with st.expander("Monthly Cash Flow Detail", expanded=False):
-        _wf_tbl = mo24[["period", "collections", "hourly_labor", "salaried_cost",
+        _wf_tbl = mo60[["period", "collections", "hourly_labor", "salaried_cost",
                          "overhead", "interest", "loc_draw", "loc_repay", "loc_end", "cash_end"]].copy()
         _wf_tbl.columns = ["Month", "Collections", "Payroll", "Mgmt", "Overhead",
                            "Interest", "LOC Draw", "LOC Repay", "LOC Balance", "Cash End"]
