@@ -1346,8 +1346,9 @@ if _L1:
     # Excel export
     if results_ready():
         wdf_exp, mdf_exp, qdf_exp = st.session_state.results
-        xls = build_excel(wdf_exp, mdf_exp, qdf_exp, st.session_state.assumptions,
-                          st.session_state.headcount_plan)
+        xls = build_excel(st.session_state.assumptions,
+                          st.session_state.headcount_plan,
+                          wdf_exp, mdf_exp, qdf_exp)
         st.download_button("Download Excel Export", data=xls,
                            file_name="opsource_investor_model.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
