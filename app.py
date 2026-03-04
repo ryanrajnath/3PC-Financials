@@ -1013,7 +1013,7 @@ PRESETS = {
             "gm_loaded_annual": 117_000, "opscoord_base": 60_000,
             "fieldsup_base": 65_000, "regionalmgr_base": 100_000,
             "mgmt_burden": 0.25,
-            "net_days": 120, "apr": 0.05, "max_loc": 500_000,
+            "net_days": 120, "apr": 0.05, "max_loc": 1_000_000,
             "cash_buffer": 15_000, "initial_cash": 0,
             "software_monthly": 300, "recruiting_monthly": 500,
             "insurance_monthly": 800, "travel_monthly": 300,
