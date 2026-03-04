@@ -1190,7 +1190,7 @@ if _L1:
     st.markdown(
         '<div style="text-align:center; margin-bottom:1.5rem;">'
         '<span style="font-size:24px; font-weight:800; color:#0F172A; letter-spacing:-0.3px;">'
-        'Your Investment Summary &mdash; OpSource Containment Division</span></div>',
+        'OpSource Containment Division</span></div>',
         unsafe_allow_html=True,
     )
 
@@ -1201,7 +1201,6 @@ if _L1:
         "Aggressive — 500 Inspectors": "25–500 Employees over 60 Months",
     }
 
-    st.caption("Pick a growth target — this changes how much you need to borrow and how fast you make money.")
     _inv_choice = st.radio(
         "Growth Scenario",
         list(_inv_presets.keys()),
@@ -1221,16 +1220,8 @@ if _L1:
         st.session_state.active_preset = _inv_preset_name
         st.session_state.preset_assumptions = _inv_p["assumptions"].copy()
         st.session_state._inv_active = _inv_choice
-        # Clear caches so they rebuild with current assumptions
-        for _ck in list(st.session_state.keys()):
-            if _ck.startswith("william_downside_") or _ck.startswith("william_scale_") or _ck.startswith("william_late_"):
-                del st.session_state[_ck]
         run_and_store()
     elif is_stale():
-        # Returning from Full Detail with modified assumptions → re-run + bust caches
-        for _ck in list(st.session_state.keys()):
-            if _ck.startswith("william_downside_") or _ck.startswith("william_scale_") or _ck.startswith("william_late_"):
-                del st.session_state[_ck]
         run_and_store()
 
     if not results_ready():
@@ -1246,129 +1237,39 @@ if _L1:
     # ── Key computations ───────────────────────────────────────────────
     mo60["cum_ebitda"] = mo60["ebitda_after_interest"].cumsum()
 
-    # Peak credit
+    # ── Key numbers ────────────────────────────────────────────────────
     _peak_loc = float(mo60["loc_end"].max())
-    _peak_loc_month = mo60.loc[mo60["loc_end"].idxmax(), "period"] if _peak_loc > 0 else "—"
-    # Translate M18 → "Month 18 (~Year 1½)"
-    def _month_plain(m_str):
-        if m_str == "—" or m_str == "Not reached": return m_str
-        m_num = int(m_str.replace("M", ""))
-        yr = m_num // 12
-        mo_rem = m_num % 12
-        if yr == 0: return f"Month {m_num}"
-        if mo_rem == 0: return f"Month {m_num} (Year {yr})"
-        return f"Month {m_num} (~Year {yr}{'½' if mo_rem >= 6 else ''})"
-
-    # Monthly profit at steady state (last 12 months)
-    _ss_months = mo60.tail(12)
-    _ss_monthly_profit = float(_ss_months["ebitda_after_interest"].mean())
-
-    # Payback month (cumulative profit > 0)
-    _payback_rows = mo60[mo60["cum_ebitda"] > 0]
-    _payback_month = _payback_rows.iloc[0]["period"] if len(_payback_rows) else "Not reached"
-
-    # 5-year total profit
     _total_profit_5yr = float(mo60["ebitda_after_interest"].sum())
+    _total_interest = float(mo60["interest"].sum())
 
-    # Return multiple and annualized return
-    _return_x = abs(_total_profit_5yr / _peak_loc) if _peak_loc > 0 else 0
-    _annual_return_pct = ((1 + abs(_total_profit_5yr) / _peak_loc) ** (1/5) - 1) * 100 if _peak_loc > 0 and _total_profit_5yr > 0 else 0
-
-    # First profitable month (monthly profit > 0)
-    _cf_pos_rows = mo60[mo60["ebitda_after_interest"] > 0]
-    _cf_pos_month = _cf_pos_rows.iloc[0]["period"] if len(_cf_pos_rows) else "Not reached"
-
-    # Bank paid off (LOC balance drops to 0 after peak)
+    # Line repaid: first month after peak where LOC drops to ~0
     _peak_loc_idx = mo60["loc_end"].idxmax()
     _post_peak = mo60.loc[_peak_loc_idx:]
     _line_free_rows = _post_peak[_post_peak["loc_end"] <= 0.01]
     _line_free_month = _line_free_rows.iloc[0]["period"] if len(_line_free_rows) else "Not reached"
 
-    # Total interest
-    _total_interest = float(mo60["interest"].sum())
-    _total_revenue = float(mo60["revenue"].sum())
-    _cost_of_money_pct = (_total_interest / _total_revenue * 100) if _total_revenue > 0 else 0
+    # Break-even: first month cumulative profit > 0
+    _be_rows = mo60[mo60["cum_ebitda"] > 0]
+    _be_month = _be_rows.iloc[0]["period"] if len(_be_rows) else "Not reached"
+
+    # ── KPIs ───────────────────────────────────────────────────────────
+    _k1, _k2, _k3, _k4 = st.columns(4)
+    william_kpi(_k1, "Peak Credit Needed", fmt_dollar(_peak_loc))
+    william_kpi(_k2, "5-Year Total Profit", fmt_dollar(_total_profit_5yr))
+    william_kpi(_k3, "Total Interest Paid", fmt_dollar(_total_interest))
+    william_kpi(_k4, "Line Repaid", _line_free_month)
 
     # ════════════════════════════════════════════════════════════════════
-    # SECTION A — Executive Summary
-    # ════════════════════════════════════════════════════════════════════
-    william_section("The Bottom Line")
-
-    # Verdict banner — plain English
-    if _payback_month != "Not reached" and _total_profit_5yr > 0:
-        _verdict_class = "verdict-pass"
-        _verdict_text = (
-            f"The most you'll ever owe the bank is <b>{fmt_dollar(_peak_loc)}</b>. "
-            f"The business starts making money each month at <b>{_month_plain(_cf_pos_month)}</b>, "
-            f"and brings in <b>{fmt_dollar(_ss_monthly_profit)}/mo</b> when fully staffed &mdash; "
-            f"you get back <b>${_return_x:.1f}0 for every $1.00</b> you put in over 5 years "
-            f"(roughly <b>{_annual_return_pct:.0f}% per year</b>)."
-        )
-    elif _total_profit_5yr > 0:
-        _verdict_class = "verdict-warn"
-        _verdict_text = (
-            f"This scenario makes <b>{fmt_dollar(_total_profit_5yr)}</b> over 5 years, "
-            f"but you'll need up to <b>{fmt_dollar(_peak_loc)}</b> from the bank. "
-            f"You won't fully pay back the startup costs within 60 months."
-        )
-    else:
-        _verdict_class = "verdict-fail"
-        _verdict_text = (
-            f"This scenario loses <b>{fmt_dollar(abs(_total_profit_5yr))}</b> over 5 years "
-            f"and needs <b>{fmt_dollar(_peak_loc)}</b> in bank credit."
-        )
-    st.markdown(f'<div class="{_verdict_class}">{_verdict_text}</div>', unsafe_allow_html=True)
-
-    # 5 large KPIs
-    _ka1, _ka2, _ka3, _ka4, _ka5 = st.columns(5)
-    william_kpi(_ka1, "Peak Credit Needed", fmt_dollar(_peak_loc), _month_plain(_peak_loc_month))
-    william_kpi(_ka2, "Monthly Profit (Fully Staffed)", fmt_dollar(_ss_monthly_profit), f"avg Year 5")
-    william_kpi(_ka3, "When You Get Paid Back", _month_plain(_payback_month), "total profits cover all losses")
-    william_kpi(_ka4, "5-Year Total Profit", fmt_dollar(_total_profit_5yr), f"${_return_x:.1f}0 back per $1 in")
-    william_kpi(_ka5, "Annual Return", f"{_annual_return_pct:.0f}%", "estimated yearly return")
-
-    # ════════════════════════════════════════════════════════════════════
-    # SECTION B — Monthly Cash-Flow Waterfall (60 months)
+    # Money In vs. Money Out Each Month
     # ════════════════════════════════════════════════════════════════════
     william_section("Money In vs. Money Out Each Month")
-    st.caption("Green = money coming in from clients. Red/orange/purple = money going out. Lines show your cash and what you owe the bank.")
 
     fig_wf = go.Figure()
-
-    # Green bars — collections in
-    fig_wf.add_trace(go.Bar(
-        x=mo60["period"], y=mo60["collections"], name="Collections In",
-        marker_color="#10B981",
-    ))
-    # Red stacked bars — costs out
-    fig_wf.add_trace(go.Bar(
-        x=mo60["period"], y=-mo60["hourly_labor"], name="Payroll",
-        marker_color="#EF4444",
-    ))
-    fig_wf.add_trace(go.Bar(
-        x=mo60["period"], y=-mo60["salaried_cost"], name="Management",
-        marker_color="#F59E0B",
-    ))
-    fig_wf.add_trace(go.Bar(
-        x=mo60["period"], y=-mo60["overhead"], name="Overhead",
-        marker_color="#F97316",
-    ))
-    fig_wf.add_trace(go.Bar(
-        x=mo60["period"], y=-mo60["interest"], name="Interest",
-        marker_color="#8B5CF6",
-    ))
-    # Lines
-    fig_wf.add_trace(go.Scatter(
-        x=mo60["period"], y=mo60["cash_end"], name="Cash Balance",
-        mode="lines+markers", line=dict(color="#0EA5E9", width=3),
-        marker=dict(size=5),
-    ))
-    fig_wf.add_trace(go.Scatter(
-        x=mo60["period"], y=mo60["loc_end"], name="Line of Credit Balance",
-        mode="lines+markers", line=dict(color="#DC2626", width=3, dash="dot"),
-        marker=dict(size=5),
-    ))
-
+    fig_wf.add_trace(go.Bar(x=mo60["period"], y=mo60["collections"], name="Collections In", marker_color="#10B981"))
+    fig_wf.add_trace(go.Bar(x=mo60["period"], y=-mo60["hourly_labor"], name="Payroll", marker_color="#EF4444"))
+    fig_wf.add_trace(go.Bar(x=mo60["period"], y=-mo60["salaried_cost"], name="Management", marker_color="#F59E0B"))
+    fig_wf.add_trace(go.Bar(x=mo60["period"], y=-mo60["overhead"], name="Overhead", marker_color="#F97316"))
+    fig_wf.add_trace(go.Bar(x=mo60["period"], y=-mo60["interest"], name="Interest", marker_color="#8B5CF6"))
     fig_wf.update_layout(
         template=TPL, barmode="relative", height=400,
         margin=dict(l=10, r=10, t=10, b=60),
@@ -1382,337 +1283,75 @@ if _L1:
     fig_wf.add_hline(y=0, line_color="#CBD5E1", line_width=1)
     st.plotly_chart(fig_wf, use_container_width=True, config=_CHART_CONFIG)
 
-    # Monthly table
-    with st.expander("See the Numbers Month by Month", expanded=False):
-        _wf_tbl = mo60[["period", "collections", "hourly_labor", "salaried_cost",
-                         "overhead", "interest", "loc_draw", "loc_repay", "loc_end", "cash_end"]].copy()
-        _wf_tbl.columns = ["Month", "Client Payments", "Payroll", "Management", "Overhead",
-                           "Interest", "Bank Borrowing", "Bank Repayment", "Line of Credit Balance", "Cash on Hand"]
-        _dollar_cols_wf = ["Client Payments", "Payroll", "Management", "Overhead", "Interest",
-                           "Bank Borrowing", "Bank Repayment", "Line of Credit Balance", "Cash on Hand"]
-        _fmt_wf = {c: "${:,.0f}" for c in _dollar_cols_wf}
-        st.dataframe(_wf_tbl.style.format(_fmt_wf), use_container_width=True, height=400, hide_index=True)
-
     # ════════════════════════════════════════════════════════════════════
-    # SECTION C — Peak Line Draw & Cost of Money
+    # How Much You Owe the Bank Over Time
     # ════════════════════════════════════════════════════════════════════
-    william_section("What You Borrow and What It Costs")
+    william_section("Line of Credit Balance Over Time")
 
-    # Build downside scenario: $1M cap, 5% APR, 6-month delayed ramp
-    # Uses CURRENT assumptions (may have been tweaked in Full Detail)
-    _ds_cache_key = f"william_downside_{_inv_choice}"
-    if _ds_cache_key not in st.session_state:
-        _ds_assumptions = st.session_state.assumptions.copy()
-        _ds_assumptions["max_loc"] = 1_000_000
-        _ds_assumptions["apr"] = 0.05
-        # Shift headcount 6 months later
-        _ds_hc = [0] * 6 + st.session_state.headcount_plan[:114]
-        _ds_w, _ds_m, _ds_q = run_model(_ds_assumptions, _ds_hc)
-        st.session_state[_ds_cache_key] = _ds_m
-
-    _ds_mo = st.session_state[_ds_cache_key]
-    _ds60 = _ds_mo[_ds_mo["month_idx"] < _inv_months].copy()
-
-    # Downside metrics
-    _ds_peak_loc = float(_ds60["loc_end"].max())
-    _ds_peak_loc_month = _ds60.loc[_ds60["loc_end"].idxmax(), "period"] if _ds_peak_loc > 0 else "—"
-    _ds_total_interest = float(_ds60["interest"].sum())
-    _ds_total_revenue = float(_ds60["revenue"].sum())
-    _ds_cost_pct = (_ds_total_interest / _ds_total_revenue * 100) if _ds_total_revenue > 0 else 0
-
-    # Weeks from peak to fully repaid (downside)
-    _ds_peak_idx = _ds60["loc_end"].idxmax()
-    _ds_post_peak = _ds60.loc[_ds_peak_idx:]
-    _ds_line_free = _ds_post_peak[_ds_post_peak["loc_end"] <= 0.01]
-    _ds_repaid_month = _ds_line_free.iloc[0]["period"] if len(_ds_line_free) else "Not repaid"
-    _ds_months_to_repay = (int(_ds_line_free.iloc[0]["month_idx"]) - int(_ds60.loc[_ds_peak_idx, "month_idx"])) if len(_ds_line_free) else "N/A"
-
-    # Base scenario months to repay
-    _base_months_to_repay = (int(_line_free_rows.iloc[0]["month_idx"]) - int(mo60.loc[_peak_loc_idx, "month_idx"])) if len(_line_free_rows) else "N/A"
-
-    _cc_left, _cc_right = st.columns(2)
-
-    with _cc_left:
-        st.markdown("**Normal Plan**")
-        _cl1, _cl2 = st.columns(2)
-        william_kpi(_cl1, "Peak Credit", fmt_dollar(_peak_loc), _month_plain(_peak_loc_month))
-        william_kpi(_cl2, "Total Interest Paid", fmt_dollar(_total_interest), f"{_cost_of_money_pct:.1f}% of sales")
-        _cl3, _cl4 = st.columns(2)
-        william_kpi(_cl3, "Line Repaid", _month_plain(_line_free_month), f"{_base_months_to_repay} months after peak" if _base_months_to_repay != "N/A" else "")
-        william_kpi(_cl4, "Interest as % of Sales", f"{_cost_of_money_pct:.1f}%", "what borrowing costs you per dollar earned")
-
-    with _cc_right:
-        st.markdown("**Stress Test** — bank limits you to $1M, you start 6 months late, 5% interest")
-        st.caption("What happens if growth is slower than planned and the bank is cautious.")
-        _cr1, _cr2 = st.columns(2)
-        william_kpi(_cr1, "Peak Credit", fmt_dollar(_ds_peak_loc), _month_plain(_ds_peak_loc_month))
-        william_kpi(_cr2, "Total Interest Paid", fmt_dollar(_ds_total_interest), f"{_ds_cost_pct:.1f}% of sales")
-        _cr3, _cr4 = st.columns(2)
-        william_kpi(_cr3, "Line Repaid", _month_plain(_ds_repaid_month), f"{_ds_months_to_repay} months after peak" if _ds_months_to_repay != "N/A" else "")
-        william_kpi(_cr4, "Interest as % of Sales", f"{_ds_cost_pct:.1f}%", "what borrowing costs you per dollar earned")
-
-    # LOC balance comparison chart
-    fig_loc_comp = go.Figure()
-    fig_loc_comp.add_trace(go.Scatter(
-        x=mo60["period"], y=mo60["loc_end"], name="Normal Plan",
-        line=dict(color=PC[0], width=3),
+    fig_loc = go.Figure()
+    fig_loc.add_trace(go.Scatter(
+        x=mo60["period"], y=mo60["loc_end"], name="Line of Credit Balance",
+        fill="tozeroy", fillcolor="rgba(239,68,68,0.08)",
+        line=dict(color=PC[3], width=3),
     ))
-    fig_loc_comp.add_trace(go.Scatter(
-        x=_ds60["period"], y=_ds60["loc_end"], name="Stress Test",
-        line=dict(color=PC[3], width=3, dash="dash"),
-    ))
-    fig_loc_comp.add_hline(y=1_000_000, line_dash="dot", line_color="#EF4444",
-                           annotation_text="$1M Bank Limit", annotation_font=dict(color="#EF4444", size=13))
-    fig_loc_comp.update_layout(
+    fig_loc.add_hline(y=float(a["max_loc"]), line_dash="dot", line_color="#EF4444",
+                      annotation_text=f"Credit Limit ({fmt_dollar(float(a['max_loc']))})",
+                      annotation_font=dict(color="#EF4444", size=13))
+    if _line_free_month != "Not reached":
+        fig_loc.add_shape(type="line", x0=_line_free_month, x1=_line_free_month, y0=0, y1=1,
+                          xref="x", yref="paper", line=dict(dash="dot", color="#10B981", width=2))
+        fig_loc.add_annotation(x=_line_free_month, y=0.96, xref="x", yref="paper",
+                               text=f"Line Repaid ({_line_free_month})", font=dict(color="#10B981", size=13),
+                               showarrow=False, textangle=-90, xanchor="right", yanchor="top")
+    fig_loc.update_layout(
         template=TPL, height=400,
-        title=dict(text="How Much You Owe the Bank Over Time — Normal vs. Stress Test", font=dict(size=16, color="#334155"), x=0),
-        margin=dict(l=10, r=10, t=50, b=60),
+        margin=dict(l=10, r=10, t=10, b=60),
         legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom", font=dict(size=13)),
         plot_bgcolor="#FAFBFC", paper_bgcolor="rgba(0,0,0,0)",
         yaxis=dict(tickformat="$,.0f", gridcolor="#E2E8F0", tickfont=dict(size=13)),
         xaxis=dict(showgrid=False, tickfont=dict(size=13)),
         hoverlabel=dict(bgcolor="#1E293B", font_color="white", font_size=13),
     )
-    st.plotly_chart(fig_loc_comp, use_container_width=True, config=_CHART_CONFIG)
-
-    # ── Worst-case risk framing ────────────────────────────────────────
-    _ds_5yr_profit = float(_ds60["ebitda_after_interest"].sum())
-    if _ds_5yr_profit < 0:
-        st.markdown(
-            f'<div class="verdict-fail">'
-            f'<b>Worst case:</b> If the bank limits you to $1M and growth starts 6 months late, '
-            f'this scenario loses <b>{fmt_dollar(abs(_ds_5yr_profit))}</b> over 5 years. '
-            f'Your maximum exposure (most you could owe) is <b>{fmt_dollar(_ds_peak_loc)}</b>.</div>',
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            f'<div class="verdict-pass">'
-            f'<b>Even in the worst case</b> (bank limits you to $1M, 6-month late start), '
-            f'this scenario still makes <b>{fmt_dollar(_ds_5yr_profit)}</b> over 5 years. '
-            f'Your maximum exposure is <b>{fmt_dollar(_ds_peak_loc)}</b>.</div>',
-            unsafe_allow_html=True,
-        )
-
-    # ── Late payment sensitivity ───────────────────────────────────────
-    # Quick estimate: if clients pay 30 days later, peak borrowing increases
-    _late_assumptions = st.session_state.assumptions.copy()
-    _late_assumptions["net_days"] = int(_late_assumptions["net_days"]) + 30
-    _late_cache_key = f"william_late_{_inv_choice}"
-    if _late_cache_key not in st.session_state:
-        _lw, _lm, _lq = run_model(_late_assumptions, st.session_state.headcount_plan)
-        st.session_state[_late_cache_key] = float(_lm[_lm["month_idx"] < _inv_months]["loc_end"].max())
-    _late_peak = st.session_state[_late_cache_key]
-    _late_increase = _late_peak - _peak_loc
-    if _late_increase > 0:
-        st.markdown(
-            f'<div class="info-box">'
-            f'<b>What if clients pay late?</b> If payment terms slip by 30 extra days, '
-            f'your peak borrowing increases from {fmt_dollar(_peak_loc)} to <b>{fmt_dollar(_late_peak)}</b> '
-            f'(an extra {fmt_dollar(_late_increase)}). Make sure your credit line can cover it.</div>',
-            unsafe_allow_html=True,
-        )
+    st.plotly_chart(fig_loc, use_container_width=True, config=_CHART_CONFIG)
 
     # ════════════════════════════════════════════════════════════════════
-    # SECTION D — Per-Inspector Economics
-    # ════════════════════════════════════════════════════════════════════
-    william_section("What Each Inspector Earns You")
-
-    # Steady state: average from months 48-59
-    _ss_range = mo60[(mo60["month_idx"] >= 48) & (mo60["month_idx"] < 60)]
-    if len(_ss_range) and _ss_range["inspectors_avg"].mean() > 0:
-        _ss_insp = _ss_range["inspectors_avg"].mean()
-        _ss_rev_pi = _ss_range["revenue"].mean() / _ss_insp
-        _ss_labor_pi = _ss_range["hourly_labor"].mean() / _ss_insp
-        _ss_gp_pi = _ss_rev_pi - _ss_labor_pi
-        _ss_overhead_pi = _ss_range["overhead"].mean() / _ss_insp
-        _ss_mgmt_pi = _ss_range["salaried_cost"].mean() / _ss_insp
-        _ss_cm_pi = _ss_gp_pi - _ss_overhead_pi - _ss_mgmt_pi
-    else:
-        # Fallback to last 12 months
-        _ss_insp = _ss_months["inspectors_avg"].mean() if _ss_months["inspectors_avg"].mean() > 0 else 1
-        _ss_rev_pi = _ss_months["revenue"].mean() / _ss_insp
-        _ss_labor_pi = _ss_months["hourly_labor"].mean() / _ss_insp
-        _ss_gp_pi = _ss_rev_pi - _ss_labor_pi
-        _ss_overhead_pi = _ss_months["overhead"].mean() / _ss_insp
-        _ss_mgmt_pi = _ss_months["salaried_cost"].mean() / _ss_insp
-        _ss_cm_pi = _ss_gp_pi - _ss_overhead_pi - _ss_mgmt_pi
-
-    # Plain English explanation
-    st.markdown(
-        f"Each inspector you put to work brings in about **{fmt_dollar(_ss_rev_pi)}/month** "
-        f"and costs about **{fmt_dollar(_ss_labor_pi)}/month** in wages. "
-        f"After all expenses, each one puts **{fmt_dollar(_ss_cm_pi)}/month** in the company's pocket."
-    )
-
-    # Unit P&L table
-    _unit_pl = pd.DataFrame({
-        "Item": ["Revenue from Client", "Wages & Benefits", "Gross Profit", "Shared Costs (per worker)", "Management Costs (per worker)", "Net Profit per Inspector"],
-        "Per Inspector / Month": [
-            f"${_ss_rev_pi:,.0f}",
-            f"${_ss_labor_pi:,.0f}",
-            f"${_ss_gp_pi:,.0f}",
-            f"${_ss_overhead_pi:,.0f}",
-            f"${_ss_mgmt_pi:,.0f}",
-            f"${_ss_cm_pi:,.0f}",
-        ],
-        "% of Revenue": [
-            "100.0%",
-            f"{(_ss_labor_pi/_ss_rev_pi*100) if _ss_rev_pi else 0:.1f}%",
-            f"{(_ss_gp_pi/_ss_rev_pi*100) if _ss_rev_pi else 0:.1f}%",
-            f"{(_ss_overhead_pi/_ss_rev_pi*100) if _ss_rev_pi else 0:.1f}%",
-            f"{(_ss_mgmt_pi/_ss_rev_pi*100) if _ss_rev_pi else 0:.1f}%",
-            f"{(_ss_cm_pi/_ss_rev_pi*100) if _ss_rev_pi else 0:.1f}%",
-        ],
-    })
-    st.dataframe(_unit_pl, use_container_width=True, hide_index=True, height=250)
-
-    # Scaling chart — 3 lines showing total monthly contribution
-    # Uses CURRENT assumptions with each preset's headcount ramp
-    _scaling_data = []
-    for _sc_label, _sc_pname in _inv_presets.items():
-        _sc_p = PRESETS[_sc_pname]
-        _sc_cache_key = f"william_scale_{_sc_label}"
-        if _sc_cache_key not in st.session_state:
-            _sc_w, _sc_m, _sc_q = run_model(st.session_state.assumptions, _sc_p["headcount"])
-            st.session_state[_sc_cache_key] = _sc_m
-        _sc_mo = st.session_state[_sc_cache_key]
-        _sc60 = _sc_mo[_sc_mo["month_idx"] < 60].copy()
-        # Total contribution = revenue - hourly_labor - overhead - salaried_cost
-        _sc60_contrib = _sc60["revenue"] - _sc60["hourly_labor"] - _sc60["overhead"] - _sc60["salaried_cost"]
-        for _, row in _sc60.iterrows():
-            _scaling_data.append({
-                "period": row["period"],
-                "month_idx": row["month_idx"],
-                "Scenario": _sc_label,
-                "contribution": row["revenue"] - row["hourly_labor"] - row["overhead"] - row["salaried_cost"],
-            })
-
-    _scale_df = pd.DataFrame(_scaling_data)
-    fig_scale = go.Figure()
-    _scale_colors = {k: c for k, c in zip(_inv_presets.keys(), [PC[0], PC[1], PC[2]])}
-    for _sc_name in _inv_presets.keys():
-        _sc_sub = _scale_df[_scale_df["Scenario"] == _sc_name]
-        fig_scale.add_trace(go.Scatter(
-            x=_sc_sub["period"], y=_sc_sub["contribution"], name=_sc_name,
-            mode="lines", line=dict(color=_scale_colors[_sc_name], width=3),
-        ))
-    fig_scale.update_layout(
-        template=TPL, height=400,
-        title=dict(text="Total Monthly Profit as You Add More Inspectors", font=dict(size=16, color="#334155"), x=0),
-        margin=dict(l=10, r=10, t=50, b=60),
-        legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom", font=dict(size=13)),
-        plot_bgcolor="#FAFBFC", paper_bgcolor="rgba(0,0,0,0)",
-        yaxis=dict(tickformat="$,.0f", gridcolor="#E2E8F0", tickfont=dict(size=13)),
-        xaxis=dict(showgrid=False, tickfont=dict(size=13)),
-        hoverlabel=dict(bgcolor="#1E293B", font_color="white", font_size=13),
-    )
-    fig_scale.add_hline(y=0, line_color="#CBD5E1", line_width=1)
-    st.plotly_chart(fig_scale, use_container_width=True, config=_CHART_CONFIG)
-
-    # ════════════════════════════════════════════════════════════════════
-    # SECTION E — Break-Even Chart
+    # Break-Even
     # ════════════════════════════════════════════════════════════════════
     william_section("Break-Even")
 
-    # J-curve chart with cumulative net cash flow + LOC balance overlay
-    fig_jcurve = go.Figure()
-
-    # Cumulative EBITDA after interest
-    fig_jcurve.add_trace(go.Scatter(
+    fig_be = go.Figure()
+    fig_be.add_trace(go.Scatter(
         x=mo60["period"], y=mo60["cum_ebitda"], name="Total Profit To Date",
         mode="lines", line=dict(color=PC[0], width=3),
-        fill="tozeroy",
-        fillcolor="rgba(14,165,233,0.08)",
+        fill="tozeroy", fillcolor="rgba(14,165,233,0.08)",
     ))
-    # LOC balance
-    fig_jcurve.add_trace(go.Scatter(
-        x=mo60["period"], y=mo60["loc_end"], name="Line of Credit Balance",
-        mode="lines", line=dict(color=PC[3], width=2, dash="dash"),
-    ))
-
-    # Vertical markers (use add_shape + add_annotation to avoid Plotly categorical axis bug)
-    if _cf_pos_month != "Not reached":
-        fig_jcurve.add_shape(type="line", x0=_cf_pos_month, x1=_cf_pos_month, y0=0, y1=1,
-                             xref="x", yref="paper", line=dict(dash="dot", color="#10B981", width=2))
-        fig_jcurve.add_annotation(x=_cf_pos_month, y=0.96, xref="x", yref="paper",
-                                  text=f"Starts Making Money ({_cf_pos_month})", font=dict(color="#10B981", size=13),
-                                  showarrow=False, textangle=-90, xanchor="right", yanchor="top")
-    if _line_free_month != "Not reached":
-        fig_jcurve.add_shape(type="line", x0=_line_free_month, x1=_line_free_month, y0=0, y1=1,
-                             xref="x", yref="paper", line=dict(dash="dot", color="#F59E0B", width=2))
-        fig_jcurve.add_annotation(x=_line_free_month, y=0.96, xref="x", yref="paper",
-                                  text=f"Line Repaid ({_line_free_month})", font=dict(color="#F59E0B", size=13),
-                                  showarrow=False, textangle=-90, xanchor="left", yanchor="top")
-
-    fig_jcurve.add_hline(y=0, line_color="#CBD5E1", line_width=1)
-    fig_jcurve.update_layout(
+    if _be_month != "Not reached":
+        fig_be.add_shape(type="line", x0=_be_month, x1=_be_month, y0=0, y1=1,
+                         xref="x", yref="paper", line=dict(dash="dot", color="#10B981", width=2))
+        fig_be.add_annotation(x=_be_month, y=0.96, xref="x", yref="paper",
+                              text=f"Break-Even ({_be_month})", font=dict(color="#10B981", size=13),
+                              showarrow=False, textangle=-90, xanchor="right", yanchor="top")
+    fig_be.add_hline(y=0, line_color="#CBD5E1", line_width=1)
+    fig_be.update_layout(
         template=TPL, height=400,
-        title=dict(text="Running Total: Are You Ahead or Behind?", font=dict(size=16, color="#334155"), x=0),
-        margin=dict(l=10, r=10, t=50, b=60),
+        margin=dict(l=10, r=10, t=10, b=60),
         legend=dict(orientation="h", y=1.08, x=0, yanchor="bottom", font=dict(size=13)),
         plot_bgcolor="#FAFBFC", paper_bgcolor="rgba(0,0,0,0)",
         yaxis=dict(tickformat="$,.0f", gridcolor="#E2E8F0", tickfont=dict(size=13)),
         xaxis=dict(showgrid=False, tickfont=dict(size=13)),
         hoverlabel=dict(bgcolor="#1E293B", font_color="white", font_size=13),
     )
-    st.plotly_chart(fig_jcurve, use_container_width=True, config=_CHART_CONFIG)
-    st.caption("The blue area shows whether you're ahead or behind overall. The dashed line shows what you still owe the bank. When blue crosses zero and the dashed line hits zero — you're fully paid back.")
+    st.plotly_chart(fig_be, use_container_width=True, config=_CHART_CONFIG)
 
-    # 3-scenario comparison table
-    st.markdown("**Side-by-Side: All Three Growth Paths**")
-    _comp_rows = []
-    for _comp_label, _comp_pname in _inv_presets.items():
-        _comp_cache_key = f"william_scale_{_comp_label}"
-        _comp_mo = st.session_state[_comp_cache_key]
-        _comp60 = _comp_mo[_comp_mo["month_idx"] < 60].copy()
-        _comp60["cum_ebitda"] = _comp60["ebitda_after_interest"].cumsum()
-
-        _comp_peak = float(_comp60["loc_end"].max())
-        _comp_cf_rows = _comp60[_comp60["ebitda_after_interest"] > 0]
-        _comp_cf_mo = _comp_cf_rows.iloc[0]["period"] if len(_comp_cf_rows) else "—"
-
-        _comp_peak_idx = _comp60["loc_end"].idxmax()
-        _comp_post = _comp60.loc[_comp_peak_idx:]
-        _comp_repaid = _comp_post[_comp_post["loc_end"] <= 0.01]
-        _comp_repaid_mo = _comp_repaid.iloc[0]["period"] if len(_comp_repaid) else "—"
-
-        _comp_5yr = float(_comp60["ebitda_after_interest"].sum())
-        _comp_ss = float(_comp60.tail(12)["ebitda_after_interest"].mean())
-        _comp_roc = abs(_comp_5yr / _comp_peak) if _comp_peak > 0 else 0
-
-        _comp_annual = ((1 + abs(_comp_5yr) / _comp_peak) ** (1/5) - 1) * 100 if _comp_peak > 0 and _comp_5yr > 0 else 0
-        _comp_rows.append({
-            "Growth Path": _comp_label,
-            "Most You Borrow": fmt_dollar(_comp_peak),
-            "First Profitable Month": _comp_cf_mo,
-            "Line Repaid": _comp_repaid_mo,
-            "5-Year Total Profit": fmt_dollar(_comp_5yr),
-            "Monthly Profit (Fully Staffed)": fmt_dollar(_comp_ss),
-            "Annual Return": f"{_comp_annual:.0f}%",
-        })
-
-    st.dataframe(pd.DataFrame(_comp_rows), use_container_width=True, hide_index=True)
-
-    # ════════════════════════════════════════════════════════════════════
-    # SECTION F — Deep Dive Access
-    # ════════════════════════════════════════════════════════════════════
-    william_section("Want More Detail?")
-
-    with st.expander("For Your Accountant or Advisors"):
-        st.markdown(
-            "Switch to **Full Detail** mode at the top of the page to see week-by-week numbers, "
-            "change any assumptions, or run what-if scenarios. "
-            "Your accountant will want this view."
-        )
-        if results_ready():
-            wdf_exp, mdf_exp, qdf_exp = st.session_state.results
-            xls = build_excel(wdf_exp, mdf_exp, qdf_exp, st.session_state.assumptions,
-                              st.session_state.headcount_plan)
-            st.download_button("Download Excel Export", data=xls,
-                               file_name="opsource_investor_model.xlsx",
-                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                               type="primary")
+    # Excel export
+    if results_ready():
+        wdf_exp, mdf_exp, qdf_exp = st.session_state.results
+        xls = build_excel(wdf_exp, mdf_exp, qdf_exp, st.session_state.assumptions,
+                          st.session_state.headcount_plan)
+        st.download_button("Download Excel Export", data=xls,
+                           file_name="opsource_investor_model.xlsx",
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                           type="primary")
 
     st.stop()
 
